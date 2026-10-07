@@ -1,11 +1,11 @@
 # InsBimPlusViewer 外部 API 文档
 
-在 InsBimPlusViewer 组件外部操作 3D 场景的工具类，通过 NPM 包引入即可使用。
+在 InsBimPlusViewer 组件外部操作 3D 场景的工具类，通过相对路径引入即可使用。
 
 ## 引入方式
 
 ```js
-import { bimControls } from '@ins/vam2-plugin-bim'
+import { bimControls } from '@/exports/bimControls'
 ```
 
 > 需在 `<InsBimPlusViewer>` 组件的 `@ready` 事件触发后才能调用，此时查看器实例已注册。
@@ -637,21 +637,24 @@ await bimControls.setGltfGeoOrigin({
 
 ```vue
 <template>
-    <VamPage size="fill" pure>
+    <div style="width: 100%; height: 100%">
         <InsBimPlusViewer
+            ref="bimViewer"
             @ready="onReady"
             @gltf-pick="onPick"
             @label-click="onLabelClick"
             @model-loaded="onModelLoaded"
             @error="onError"
         />
-    </VamPage>
+    </div>
 </template>
 
 <script>
-import { bimControls } from '@ins/vam2-plugin-bim'  // 也可以直接用controller
+import { bimControls } from '@/exports/bimControls'
+import InsBimPlusViewer from '@/components/InsBimViewer/index.vue'
 
 export default {
+    components: { InsBimPlusViewer },
     data() {
         return {
             tilesetSources: [
@@ -660,7 +663,6 @@ export default {
             gltfSources: [
                 { id: 'rm-glb', url: 'http://server/data/gltf/rm/RM_.glb' },
             ],
-            controler: null  // 底层查看器
         }
     },
     methods: {
@@ -669,22 +671,17 @@ export default {
          * @param {BimViewerController} controller - 底层查看器实例
          */
         async onReady(controller) {
-            this.controler = controler
-
             // 1. 加载环境配置（天空/HDR/光照/曝光）
-            import sceneConfig from './config/bim-scene-config.js'
-            await bimControls.applyEnvConfig(sceneConfig.envConfig)
+            await bimControls.applyEnvConfig(window.BizConfig?.sceneConfig?.envConfig)
 
             // 2. 加载材质配置（自动应用到后续加载的模型）
-            import materialConfig from './config/material-config.js'
-            bimControls.applyMaterialConfig(materialConfig)
+            bimControls.applyMaterialConfig(window.BizConfig?.sceneConfig?.materialConfig)
 
             // 3. 加载 3D Tiles 地形
             await bimControls.loadTilesets(this.tilesetSources)
 
-            // 4. 加载 GLB 模型（自动应用已设置的材质配置）
-            // geoOrigin 可从 sceneConfig 读取，不传则不做地理配准
-            await bimControls.loadGltfModels(this.gltfSources, sceneConfig.geoOrigin)
+            // 4. 加载 GLB 模型
+            await bimControls.loadGltfModels(this.gltfSources)
 
             // 5. 渲染 3D 标签
             bimControls.renderLabels({ type: 'label', list: [...] })
