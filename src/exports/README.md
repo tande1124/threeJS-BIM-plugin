@@ -151,6 +151,38 @@ bimControls.loadGltfModels(
 |------|------|------|
 | `config` | `Object` | 标签配置对象（含 `type`、`list` 字段） |
 
+**list 项字段说明：**
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `id` | `number \| string` | 是 | 标签唯一 ID |
+| `name` | `string` | 是 | 标签名称（显示在名称牌上） |
+| `longitude` | `number` | 是 | 经度 |
+| `latitude` | `number` | 是 | 纬度 |
+| `altitude` | `number` | 否 | 高程（米），默认 0 |
+| `model` | `string` | 否 | 模型 ID（如 `L05`）或文件路径，默认 `L06`。见 `label-assets.js` |
+
+**opts 字段说明（按重要程度排列）：**
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `texture` | `string` | `''` | 贴图 ID（如 `T0538`）或文件路径。见 `label-assets.js` |
+| `ringColor` | `string` | `'#fff'` | 圆环/涟漪/名称牌主题色，CSS 颜色值 |
+| `scale` | `number` | `200` | 整体缩放 |
+| `labelHeight` | `number` | `0.2` | 图标离地高度 |
+| `emissiveBoost` | `number` | `0.5` | 自发光增亮强度，不改变图标颜色仅提升亮度（0=关闭，建议 0.2~0.5） |
+| `showName` | `boolean` | `true` | 是否显示名称牌 |
+| `nameTagStyle` | `string` | `'stacked'` | 名称牌样式：`bubble` / `glow` / `plaque` / `stacked` |
+| `nameTagHeight` | `number` | `1.5` | 名称牌偏移距离 |
+| `nameTagScale` | `number` | `1` | 名称牌大小 |
+| `nameTagOrientation` | `string` | `'vertical'` | 名称牌方向：`vertical` / `horizontal` |
+| `nameTagRot` | `number` | `0` | 名称牌旋转角度（度） |
+| `animEnabled` | `boolean` | `false` | 动画开关 |
+| `animationType` | `string` | `'bounce'` | 动画类型：`bounce` / `rotate` / `both` / `none` |
+| `rippleEnabled` | `boolean` | `true` | 底部涟漪开关 |
+| `rotation` | `number` | `0` | 整体 Y 轴旋转角度（度） |
+| `phase` | `number` | `null` | 动画相位，null 则随机 |
+
 ```js
 bimControls.renderLabels({
     type: 'label',
@@ -161,19 +193,86 @@ bimControls.renderLabels({
             longitude: 98.348505,
             latitude: 29.633465,
             altitude: 2711.1,
-            icon: './assets/icon/label.glb',
+            model: 'L05',
             opts: {
-                template: '标签_C',
-                color: '#88ddff',
-                animation: 'bounce',
+                ringColor: '#fff',
+                animationType: 'bounce',
+                animEnabled: true,
                 scale: 200,
+                labelHeight: 0.2,
+                rippleEnabled: true,
                 showName: true,
-                nameStyle: 'glow',
+                nameTagStyle: 'stacked',
+                nameTagHeight: 1.5,
+                nameTagScale: 1,
+                texture: 'T0538',
+                rotation: 0,
             },
         },
     ],
 })
 ```
+
+### 模型资源表
+
+| ID | Key | 名称 | 模型文件 |
+|----|-----|------|----------|
+| `L01` | `label_a` | 标签 A | `label_a.glb` |
+| `L02` | `label_b` | 标签 B | `label_b.glb` |
+| `L03` | `label_c` | 标签 C | `label_c.glb` |
+| `L04` | `label_d` | 标签 D | `label_d.glb` |
+| `L05` | `label_e` | 标签 E | `label_e.glb` |
+| `L06` | `label_e2` | 标签 E2 | `label_e2.glb`（默认模型） |
+
+### L05 / L06 贴图资源表
+
+> L06（label_e2）复用 L05 的贴图资源。配置中使用 `texture: 'T05xx'` 即可。
+
+| ID | 名称 | 文件 | 分类 |
+|----|------|------|------|
+| `T0501` | 安防计算机 | `security_computer.jpg` | 设备/服务器 |
+| `T0502` | 安全帽型定位标签 | `helmet_tag.jpg` | 定位/标签 |
+| `T0503` | 车辆测速一体机 | `veh_speed.jpg` | 车辆 |
+| `T0504` | 车辆道闸（栅栏型） | `gate_fence.jpg` | 道闸/门禁 |
+| `T0505` | 车辆道闸（直杆型） | `gate_straight.jpg` | 道闸/门禁 |
+| `T0506` | 车辆监控主体 | `veh_mon.jpg` | 车辆 |
+| `T0507` | 车载定位终端 | `veh_pos.jpg` | 定位/标签 |
+| `T0508` | 沉降环 | `settle_ring.jpg` | 工程/安全 |
+| `T0509` | 道路预警机 | `road_warn.jpg` | 工程/安全 |
+| `T0510` | 吊牌型定位标签 | `hang_tag.jpg` | 定位/标签 |
+| `T0511` | 定位基站 | `loc_base.jpg` | 定位/标签 |
+| `T0512` | 工业车辆 | `ind_veh.jpg` | 车辆 |
+| `T0513` | 固定枪机 | `cam_bullet.jpg` | 摄像头 |
+| `T0514` | 固定球型摄像头（防爆） | `cam_expl_dome.jpg` | 摄像头 |
+| `T0515` | 固定智能球型摄像头 | `cam_smart_dome.jpg` | 摄像头 |
+| `T0516` | 管理人员 | `mgmt_staff.jpg` | 人员 |
+| `T0517` | 户外LED大屏 | `led_screen.jpg` | 设备/服务器 |
+| `T0518` | 环境监控 | `env_mon.jpg` | 监测/环境 |
+| `T0519` | 混凝土车辆 | `concrete_veh.jpg` | 车辆 |
+| `T0520` | 监测点 | `mon_point.jpg` | 监测/环境 |
+| `T0521` | 控制主机 | `control_host.jpg` | 设备/服务器 |
+| `T0522` | 流量计 | `flow_meter.jpg` | 监测/环境 |
+| `T0523` | 普通车辆 | `ord_veh.jpg` | 车辆 |
+| `T0524` | 起重机 | `crane.jpg` | 工程/安全 |
+| `T0525` | 气象监测 | `weather_mon.jpg` | 监测/环境 |
+| `T0526` | 三辊闸 | `tri_gate.jpg` | 道闸/门禁 |
+| `T0527` | 视频监控存储设备 | `video_storage.jpg` | 设备/服务器 |
+| `T0528` | 视频平台管理服务器 | `video_server.jpg` | 设备/服务器 |
+| `T0529` | 收扩机（通讯终端） | `comm_terminal.jpg` | 设备/服务器 |
+| `T0530` | 塔吊 | `t_crane.jpg` | 工程/安全 |
+| `T0531` | 通用车辆 | `gen_veh.jpg` | 车辆 |
+| `T0532` | 土体位移计 | `soil_gauge.jpg` | 监测/环境 |
+| `T0533` | 危化品 | `haz_chem.jpg` | 工程/安全 |
+| `T0534` | 无线网桥 | `wireless_bridge.jpg` | 设备/服务器 |
+| `T0535` | 压力容器 | `pressure_vessel.jpg` | 工程/安全 |
+| `T0536` | 扬尘监测 | `dust_mon.jpg` | 监测/环境 |
+| `T0537` | 翼闸（左中右） | `flap_gate.jpg` | 道闸/门禁 |
+| `T0538` | 智能轻便型便携球机 | `cam_dome.jpg` | 摄像头 |
+| `T0539` | 智能巡检AI服务器 | `ai_server.jpg` | 设备/服务器 |
+| `T0540` | 污水 | `sewage.jpg` | 监测/环境 |
+| `T0541` | 扬尘噪声 | `dust_noise.jpg` | 监测/环境 |
+
+> 图片文件位于 `public/assets/model/image/` 目录下。
 
 ---
 
@@ -385,17 +484,40 @@ bimControls.setPartMaterial('Wall_001', mat)
 
 ---
 
-### `highlightPart(name)`
+### `highlightPart(name, options?)`
 
 按名称高亮部件（半透明 + 轮廓线）并飞行聚焦。
 
 | 参数 | 类型 | 说明 |
 |------|------|------|
 | `name` | `string` | 部件名称 |
+| `options` | `Object` | 可选，高亮配置选项 |
+| `options.color` | `number \| string` | 轮廓线/线框颜色，默认 `0xadff2f` |
+| `options.edgeHighlight` | `boolean` | 是否使用 EdgesGeometry 线框边缘高亮，默认 `false` |
 | **返回** | `Object \| false` | 部件信息或 false |
 
 ```js
 const info = bimControls.highlightPart('Roof_001')
+
+// 自定义高亮颜色和边缘高亮
+bimControls.highlightPart('Roof_001', { color: 0xff6600, edgeHighlight: true })
+```
+
+---
+
+### `setPartVisible(name, visible)`
+
+按名称设置部件显隐。
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `name` | `string` | 部件名称 |
+| `visible` | `boolean` | 是否可见 |
+| **返回** | `boolean` | 是否成功 |
+
+```js
+bimControls.setPartVisible('Wall_001', false)
+bimControls.setPartVisible('Wall_001', true)
 ```
 
 ---
