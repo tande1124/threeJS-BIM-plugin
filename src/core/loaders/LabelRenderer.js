@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { disposeObject3D } from '../../utils/three-dispose'
 import { lonLatHeightToEcef } from '../../utils/geo-coordinate'
+import { resolveModel, resolveTexture } from '../../utils/label-assets'
 
 // ========== 常量 ==========
 
@@ -20,19 +21,26 @@ const ADAPTIVE_LERP = 0.08       // 平滑插值系数
 // ========== 默认 opts ==========
 
 const DEFAULT_OPTS = {
-    color: '#88ddff',
-    animation: 'bounce',       // bounce | rotate | both | none
-    animEnabled: true,
-    scale: 50,
-    labelHeight: 0.3,
-    ripple: true,
-    phase: null,               // null = 随机
-    rotation: 0,               // Y 轴旋转（度）
-    showName: true,
-    nameStyle: 'bubble',       // bubble | glow
-    nameTagHeight: 1.3,
-    nameTagSize: 0.65,
-    nameTagRot: 0,
+    // ---- 核心（必填/高频调整） ----
+    texture: '',                   // 模型表面贴图路径
+    ringColor: '#fff',            // 圆环/涟漪/名称牌主题色
+    scale: 200,                    // 整体缩放
+    labelHeight: 0.2,              // 图标离地高度
+    emissiveBoost: 0.5,            // 自发光增亮强度（0=关闭，建议 0.2~0.5）
+    showName: true,                // 是否显示名称牌
+    // ---- 名称牌 ----
+    nameTagStyle: 'stacked',       // bubble | glow | plaque | stacked
+    nameTagHeight: 1.5,            // 名称牌偏移距离
+    nameTagScale: 1,               // 名称牌大小
+    nameTagOrientation: 'vertical',// vertical | horizontal
+    nameTagRot: 0,                 // 名称牌旋转角度（度）
+    // ---- 动画与效果 ----
+    animEnabled: false,             // 动画开关
+    animationType: 'bounce',       // bounce | rotate | both | none
+    rippleEnabled: true,           // 底部涟漪开关
+    // ---- 低频（一般保持默认） ----
+    rotation: 0,                   // Y 轴旋转（度）
+    phase: null,                   // null = 随机
 }
 
 // ========== 辅助：底部圆环 ==========
@@ -221,10 +229,16 @@ export class LabelRenderer {
     iconCache = new Map()
     /** 已加载的图标模板中的子节点 Map<nodeName, Object3D> */
     templates = new Map()
+    /** 每个模型 URL 对应的模板名列表（按提取顺序），用于自动选取第一个模板 */
+    modelTemplateMap = new Map()
 
     labels = []
     loader = new GLTFLoader()
     prevTime = 0
+
+    /** 贴图缓存 Map<url, THREE.Texture>，同路径只加载一次 */
+    textureCache = new Map()
+    textureLoader = new THREE.TextureLoader()
 
     /** 自适应缩放：参考距离（首次 update 时捕获） */
     referenceDistance = 0
@@ -265,6 +279,7 @@ export class LabelRenderer {
         this.iconCache.set(url, sceneRoot)
 
         // 提取命名标签节点
+        const templateNames = []
         sceneRoot.traverse((node) => {
             const name = node.name || ''
             const isLabel =
@@ -275,6 +290,7 @@ export class LabelRenderer {
                     if (c.isMesh) { c.castShadow = true; c.receiveShadow = true }
                 })
                 this.templates.set(name, cloned)
+                templateNames.push(name)
                 console.log(`[LabelRenderer]   提取模板: "${name}"`)
             }
         })
@@ -289,8 +305,12 @@ export class LabelRenderer {
                 if (c.isMesh) { c.castShadow = true; c.receiveShadow = true }
             })
             this.templates.set(key, sceneRoot)
+            templateNames.push(key)
             console.log(`[LabelRenderer]   未找到命名节点，使用 "${key}" 作为模板`)
         }
+
+        // 记录该模型 URL 对应的模板名列表
+        this.modelTemplateMap.set(url, templateNames)
 
         console.log(`[LabelRenderer]   模板总数: ${this.templates.size}`)
     }
@@ -339,8 +359,8 @@ export class LabelRenderer {
         this.root.add(group)
         this.groups.set(type, group)
 
-        // 预加载所有 icon（去重）
-        const iconUrls = [...new Set(list.map((item) => item.icon).filter(Boolean))]
+        // 预加载所有 model（去重，支持标识和路径两种格式）
+        const iconUrls = [...new Set(list.map((item) => resolveModel(item.model)))]
         for (const url of iconUrls) {
             await this.loadIcon(url)
         }
@@ -374,12 +394,15 @@ export class LabelRenderer {
         // ---- 合并 opts（item.opts 覆盖默认值） ----
         const opts = { ...DEFAULT_OPTS, ...item.opts }
 
-        // ---- 确定图标模板 ----
+        // ---- 确定图标模板（自动取该模型的第一个模板节点） ----
+        const modelUrl = resolveModel(item.model)
         let templateName = fallbackTemplate
-        if (opts.template && this.templates.has(opts.template)) {
-            templateName = opts.template
-        } else if (item.icon) {
-            const fileKey = item.icon.split('/').pop().replace('.glb', '')
+        const modelTemplates = this.modelTemplateMap.get(modelUrl)
+        if (modelTemplates && modelTemplates.length > 0) {
+            templateName = modelTemplates[0]
+        } else {
+            // 回退：尝试用文件名作为模板 key
+            const fileKey = modelUrl.split('/').pop().replace('.glb', '')
             if (this.templates.has(fileKey)) {
                 templateName = fileKey
             }
@@ -391,7 +414,7 @@ export class LabelRenderer {
             return
         }
 
-        const color = opts.color
+        const color = opts.ringColor
         const scale = opts.scale
         const labelHeight = opts.labelHeight
         const phase = opts.phase ?? Math.random() * Math.PI * 2
@@ -413,9 +436,39 @@ export class LabelRenderer {
 
         // ---- 克隆图标 ----
         const iconClone = template.clone(true)
+        // 克隆材质实例，避免多标签共享同一模板时互相覆盖贴图/自发光等属性
+        iconClone.traverse((c) => {
+            if (c.isMesh && c.material) {
+                c.material = Array.isArray(c.material)
+                    ? c.material.map((m) => m.clone())
+                    : c.material.clone()
+            }
+        })
         iconClone.rotation.x = -Math.PI / 2
         iconClone.position.y = labelHeight
         container.add(iconClone)
+
+        // ---- 贴图应用（支持标识和路径两种格式） ----
+        const textureUrl = resolveTexture(opts.texture)
+        if (textureUrl) {
+            this.applyTexture(iconClone, textureUrl)
+        }
+
+        // ---- 自发光增亮（不改色相，仅提升亮度） ----
+        if (opts.emissiveBoost > 0) {
+            iconClone.traverse((child) => {
+                if (child.isMesh && child.material) {
+                    const mats = Array.isArray(child.material) ? child.material : [child.material]
+                    mats.forEach((mat) => {
+                        if ('emissive' in mat) {
+                            mat.emissive = new THREE.Color(0xffffff)
+                            mat.emissiveMap = mat.map || null
+                            mat.emissiveIntensity = opts.emissiveBoost
+                        }
+                    })
+                }
+            })
+        }
 
         // ---- 底部圆环 ----
         const ring = createRing(color)
@@ -423,19 +476,30 @@ export class LabelRenderer {
 
         // ---- 涟漪 ----
         let rippleGroup = null
-        if (opts.ripple) {
+        if (opts.rippleEnabled) {
             rippleGroup = createRipples(color)
             container.add(rippleGroup)
         }
 
         // ---- 名称牌 ----
         if (opts.showName && item.name) {
-            const nameTag = createNameTag(item.name, color, opts.nameStyle)
-            nameTag.position.set(0, labelHeight + opts.nameTagHeight, 0)
-            nameTag.scale.multiplyScalar(opts.nameTagSize)
-            if (opts.nameTagRot) {
-                nameTag.material.rotation = THREE.MathUtils.degToRad(opts.nameTagRot)
+            const nameTag = createNameTag(item.name, color, opts.nameTagStyle)
+            if (opts.nameTagOrientation === 'horizontal') {
+                nameTag.rotation.order = 'YXZ'
+                nameTag.rotation.y = THREE.MathUtils.degToRad(opts.nameTagRot)
+                nameTag.rotation.x = -Math.PI / 2
+                nameTag.position.set(
+                    Math.sin(nameTag.rotation.y) * opts.nameTagHeight,
+                    0,
+                    Math.cos(nameTag.rotation.y) * opts.nameTagHeight
+                )
+            } else {
+                nameTag.position.set(0, labelHeight + opts.nameTagHeight, 0)
+                if (opts.nameTagRot) {
+                    nameTag.material.rotation = THREE.MathUtils.degToRad(opts.nameTagRot)
+                }
             }
+            nameTag.scale.multiplyScalar(opts.nameTagScale)
             container.add(nameTag)
         }
 
@@ -443,9 +507,9 @@ export class LabelRenderer {
         const anim = {
             icon: iconClone,
             ripples: rippleGroup ? rippleGroup.children : [],
-            rippleEnabled: !!opts.ripple,
+            rippleEnabled: !!opts.rippleEnabled,
             animEnabled: opts.animEnabled,
-            animType: opts.animation || 'bounce',
+            animType: opts.animationType || 'bounce',
             labelHeight,
             phase,
         }
@@ -458,6 +522,44 @@ export class LabelRenderer {
 
         group.add(container)
         this.labels.push(container)
+    }
+
+    // ========== 贴图 ==========
+
+    /**
+     * 加载贴图（带缓存，同路径只加载一次）。
+     * @param {string} url - 贴图文件路径
+     * @returns {THREE.Texture}
+     */
+    loadTexture(url) {
+        if (!this.textureCache.has(url)) {
+            const tex = this.textureLoader.load(url)
+            tex.colorSpace = THREE.SRGBColorSpace
+            this.textureCache.set(url, tex)
+        }
+        return this.textureCache.get(url)
+    }
+
+    /**
+     * 将贴图应用到模型所有 mesh 的 map 属性。
+     * 注意：调用方需确保材质已克隆（不会共享），否则多标签会互相覆盖。
+     * @param {THREE.Object3D} model - 模型对象
+     * @param {string} textureUrl - 贴图路径
+     */
+    applyTexture(model, textureUrl) {
+        if (!textureUrl) return
+        const tex = this.loadTexture(textureUrl)
+        model.traverse((child) => {
+            if (child.isMesh && child.material) {
+                const mats = Array.isArray(child.material) ? child.material : [child.material]
+                mats.forEach((mat) => {
+                    if ('map' in mat) {
+                        mat.map = tex
+                        mat.needsUpdate = true
+                    }
+                })
+            }
+        })
     }
 
     // ========== 图层管理 ==========
@@ -675,6 +777,8 @@ export class LabelRenderer {
         this.labels = []
         this.templates.clear()
         this.iconCache.clear()
+        this.modelTemplateMap.clear()
+        this.textureCache.clear()
         if (this.root.parent) this.root.parent.remove(this.root)
         disposeObject3D(this.root)
     }

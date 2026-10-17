@@ -277,14 +277,17 @@ const bimControls = {
   /**
    * 按 name 高亮部件（半透明 + 轮廓线）并飞行聚焦。
    * @param {string} name - 部件名称
+   * @param {Object} [options={}] - 高亮配置选项
+   * @param {number|string} [options.color=0xadff2f] - 轮廓线/线框颜色
+   * @param {boolean} [options.edgeHighlight=false] - 是否使用 EdgesGeometry 线框边缘高亮
    * @returns {Object|false} 部件信息或 false
    */
-  highlightPart(name) {
+  highlightPart(name, options = {}) {
     const c = getViewer()
     const loader = c?.getGltfModelLoader()
     const info = this.findPartByName(name)
     if (!info || !loader) return false
-    loader.highlight(info.object)
+    loader.highlight(info.object, options)
     loader.flyToObject(info.object)
     console.log(`已高亮部件 "${name}"`, info)
     return info
@@ -293,6 +296,20 @@ const bimControls = {
   /** 清除当前高亮 */
   clearHighlight() {
     getViewer()?.clearGltfHighlight()
+  },
+
+  /**
+   * 按 name 设置部件显隐。
+   * @param {string} name - 部件名称
+   * @param {boolean} visible - 是否可见
+   * @returns {boolean}
+   */
+  setPartVisible(name, visible) {
+    this.clearHighlight()
+    const info = this.findPartByName(name)
+    if (!info) return false
+    info.object.visible = visible
+    return true
   },
 
 

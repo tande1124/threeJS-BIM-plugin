@@ -37,6 +37,14 @@ export default {
       bgIntensity: 1.5,      // HDR 背景强度
       exposure: 1       // 全局曝光度
     },
+
+    // Bloom 后期泛光
+    bloom: {
+      enabled: false,
+      strength: 0.3,
+      radius: 0.5,
+      threshold: 0.8
+    },
   },
 
   /**

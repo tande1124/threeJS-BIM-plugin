@@ -212,14 +212,31 @@ export default defineComponent({
       return bimControls.setPartMaterial(name, matKey)
     },
 
-    /** 按 name 高亮部件（半透明 + 轮廓线）并飞行聚焦 */
-    highlightPart(name) {
-      return bimControls.highlightPart(name)
+    /**
+     * 按 name 高亮部件（半透明 + 轮廓线）并飞行聚焦。
+     * @param {string} name - 部件名称
+     * @param {Object} [options={}] - 高亮配置选项
+     * @param {number|string} [options.color=0xadff2f] - 轮廓线/线框颜色
+     * @param {boolean} [options.edgeHighlight=false] - 是否使用 EdgesGeometry 线框边缘高亮
+     * @returns {Object|false}
+     */
+    highlightPart(name, options = {}) {
+      return bimControls.highlightPart(name, options)
     },
 
     /** 清除当前高亮 */
     clearHighlight() {
       bimControls.clearHighlight()
+    },
+
+    /**
+     * 按 name 设置部件显隐。
+     * @param {string} name - 部件名称
+     * @param {boolean} visible - 是否可见
+     * @returns {boolean}
+     */
+    setPartVisible(name, visible) {
+      return bimControls.setPartVisible(name, visible)
     },
 
     /** 添加html标注（位置，元素）
