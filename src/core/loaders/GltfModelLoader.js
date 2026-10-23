@@ -469,11 +469,24 @@ export class GltfModelLoader {
     }
 
     // 只处理已有 geoOrigin 的模型（即之前被地理配准过的模型）
-    // 未配准的模型（如叠加加载的，以 center 定位）保持不变
     const geoModels = models.filter((m) => m.userData?.geoOrigin)
+
     if (geoModels.length === 0) {
-      console.warn('[GltfModelLoader] 无已配准的模型，跳过 setGltfGeoOrigin。')
-      return false
+      // 所有模型都未配准过：作为首次地理配准，重置位置并应用新矩阵
+      console.info('[GltfModelLoader] 无已配准模型，对所有模型执行首次地理配准')
+      for (const model of models) {
+        model.matrix.identity()
+        const centerOffset = model.userData._centerOffset
+        if (centerOffset) {
+          model.translateOnAxis(centerOffset, 1)
+        }
+        model.applyMatrix4(newMatrix)
+        model.matrix.decompose(model.position, model.quaternion, model.scale)
+        model.userData.geoOrigin = { ...newGeoInfo }
+        delete model.userData._centerOffset
+        delete model.userData._usedFallbackEcef
+      }
+      return true
     }
 
     const refModel = geoModels[0]

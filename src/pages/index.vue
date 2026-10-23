@@ -1,7 +1,7 @@
 <template>
     <div class="bim-plus-container">
         <!-- 场景A -->
-        <InsBimPlusViewer class="bim-viewer" ref="bimViewer"
+        <InsBimPlusViewer class="bim-viewer" ref="bimViewer" @ready="onReady"
             @model-loaded="onModelLoaded" @error="onError" @gltf-pick="onPartClick" @label-click="onLabelClick" />
         <div class="toolbar">
             <div class="toolbar-group">
@@ -68,9 +68,11 @@ import ModelTree from "./ModelTree.vue";
 import SceneEnvPanel from "./SceneEnvPanel.vue";
 import { bimControls } from '../exports/bimControls'
 import sceneConfig from '../config/scene-config'
+import InsBimPlusViewer from "../components/InsBimViewer/index.vue";
 
 export default {
     components: {
+        InsBimPlusViewer,
         ModelTree,
         SceneEnvPanel,
     },
@@ -186,8 +188,9 @@ export default {
     },
     methods: {
         // 场景就绪后，给触发的那个 viewer 应用环境配置
-        async onReady(controller, refName) {
-            const v = this.$refs[refName];
+        async onReady(controller) {
+            const v = this.$refs.bimViewer;
+            this.controller = controller;
             if (!v) return;
             v.applyEnvConfig(this.envConfig);
         },
@@ -301,7 +304,6 @@ export default {
                 target: { x: 0.00, y: 0.00, z: 0.00 }
             });
         },
-
         async setSceneCoordinate() {
             if (!this.$refs.bimViewer) return;
             await this.$refs.bimViewer.setGltfGeoOrigin({
