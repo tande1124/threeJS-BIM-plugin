@@ -11,7 +11,7 @@ import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js'
  * 使用 CDN 加载 basis_transcoder.{js,wasm}，避免本地 libs 目录增大包体积。
  * 运行时 KTX2Loader 按 URL 加载 Worker，无需打包器处理。
  */
-const KTX2_TRANSCODER_PATH = './libs/basis/'
+const KTX2_TRANSCODER_PATH = './cdn/libs/basis/'
 
 /**
  * GLTF loader 插件：补齐 cesiumlab（osgb2tiles 等工具）3D Tiles 的贴图解码。
@@ -68,6 +68,9 @@ export class TileModelLoader {
   tilesetSource = null
   /** 是否有瓦片集加载完成 */
   ready = false
+
+  /** 当前地形透明度 (1 = 不透明) */
+  _tileOpacity = 1
 
   /** KTX2 纹理解码器 */
   ktx2Loader = null
@@ -138,11 +141,24 @@ export class TileModelLoader {
         scene.traverse((obj) => {
           if (obj.isMesh) {
             obj.layers.set(0)
-            if (obj.material) obj.material.side = THREE.DoubleSide
+            if (obj.material) {
+              obj.material.side = THREE.DoubleSide
+            }
             obj.castShadow = true
             obj.receiveShadow = true
           }
         })
+        // 首次加载即同步透明度
+        if (this._tileOpacity < 1) {
+          this._applyTileOpacity(scene)
+        }
+      })
+
+      // LOD 切换时瓦片显隐变化：重新应用透明度
+      tr.addEventListener('tile-visibility-change', ({ scene, visible }) => {
+        if (visible && this._tileOpacity < 1 && scene) {
+          this._applyTileOpacity(scene)
+        }
       })
 
       // 瓦片集加载完成：更新场景范围、相机裁剪面
@@ -166,6 +182,24 @@ export class TileModelLoader {
       this.root.add(tr.group)
       tr.group.userData.sourceId = source.id
       this.tilesRenderers.push(tr)
+    }
+
+    // 强制首个瓦片集加载 root tileset JSON，确保 ReorientationPlugin 计算出
+    // ECEF→场景变换矩阵，即使 group.visible=false 也能让 GLB 地理配准使用真实变换
+    const first = this.tilesRenderers[0]
+    if (first && !first.root) {
+      await new Promise((resolve) => {
+        let settled = false
+        const done = () => {
+          if (settled) return
+          settled = true
+          first.removeEventListener('load-tile-set', done)
+          resolve()
+        }
+        first.addEventListener('load-tile-set', done)
+        first.update()
+        setTimeout(done, 10000) // 安全超时
+      })
     }
   }
 
@@ -237,11 +271,14 @@ export class TileModelLoader {
   /**
    * 获取首个瓦片渲染器的 group.matrixWorld（ECEF → 场景坐标变换矩阵）。
    * 用于 GLB 地理配准。
+   *
+   * 仅当 root tileset 已加载（ReorientationPlugin 已计算变换）时返回有效矩阵；
+   * 否则返回 null，调用方应回退到基于 geoInfo 的变换（createEcefToSceneFromGeoInfo）。
    * @returns {THREE.Matrix4|null}
    */
   getFirstTransform() {
     const first = this.tilesRenderers[0]
-    if (!first) return null
+    if (!first || !first.root) return null
     const group = first.group
     group.updateMatrixWorld(true)
     return group.matrixWorld.clone()
@@ -275,6 +312,40 @@ export class TileModelLoader {
         resolve()
       }, timeout)
     })
+  }
+
+  // ========== 透明度控制 ==========
+
+  /**
+   * 将透明度应用到指定场景的所有 mesh（内部方法）。
+   * @param {THREE.Object3D} root
+   */
+  _applyTileOpacity(root) {
+    const opacity = this._tileOpacity
+    const transparent = opacity < 1
+    root.traverse((obj) => {
+      if (obj.isMesh && obj.material) {
+        const mats = Array.isArray(obj.material) ? obj.material : [obj.material]
+        for (const m of mats) {
+          m.transparent = transparent
+          m.opacity = opacity
+          m.depthWrite = !transparent
+          m.needsUpdate = true
+        }
+      }
+    })
+  }
+
+  /**
+   * 设置所有地形瓦片的透明度。
+   * LOD 切换时新显示的瓦片会自动同步（通过 tile-visibility-change 事件）。
+   * @param {number} opacity - 0~1，1 为完全不透明，0 为完全透明
+   */
+  setTilesOpacity(opacity) {
+    this._tileOpacity = opacity
+    for (const tr of this.tilesRenderers) {
+      this._applyTileOpacity(tr.group)
+    }
   }
 
   // ========== 生命周期 ==========

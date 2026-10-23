@@ -1,5 +1,10 @@
 import * as THREE from 'three'
 import { EXRLoader } from 'three/addons/loaders/EXRLoader.js'
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js'
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js'
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
+import { OutlinePass } from 'three/addons/postprocessing/OutlinePass.js'
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js'
 import LightDragHelper from './LightDragHelper.js'
 
 // ========== 环境配置 ==========
@@ -7,19 +12,14 @@ import LightDragHelper from './LightDragHelper.js'
 /** 背景默认底色（无 HDR 且 bgInt=0 时使用） */
 const BG_COLOR = 0x1a1a2e
 
-/** 渐变背景颜色（环境贴图关闭时的回退背景，与 environment.js 一致） */
-const GRADIENT_COLORS = [
-  { stop: 0, color: '#46557a' },
-  { stop: 0.55, color: '#232e47' },
-  { stop: 1, color: '#0e1422' },
-]
 
 /** 默认 HDR 路径 */
-const DEFAULT_HDR_PATH = './assets/studio.exr'
+const DEFAULT_HDR_PATH = './cdn/assets/studio.exr'
 
 /** 默认环境配置（无外部文件时使用） */
 const DEFAULT_CONFIG = Object.freeze({
   envMapEnabled: false,
+  
   dirLight: {
     intensity: 1,
     yaw: 45,
@@ -34,7 +34,8 @@ const DEFAULT_CONFIG = Object.freeze({
       bias: -0.001,
     },
   },
-  envLight: { intensity: 1, bgIntensity: 1.5, exposure: 1 },
+  envLight: { intensity: 0.3, bgIntensity: 1.5, exposure: 1 },
+  bloom: { enabled: false, strength: 0.001, radius: 0, threshold: 0 },
 })
 
 // ========== 环境管理器 ==========
@@ -78,6 +79,19 @@ export class EnvironmentManager {
   /** 当前配置缓存（applyAllParams 后保留，供后续局部更新使用） */
   config = null
 
+  /** 后处理合成器（始终创建，Bloom 通过 pass.enabled 切换） */
+  composer = null
+  /** UnrealBloomPass 实例 */
+  bloomPass = null
+  /** OutlinePass 实例：选中部件描边发光 */
+  outlinePass = null
+  /** OutlinePass 专用相机（全图层可见） */
+  outlineCamera = null
+  /** RenderPass 实例 */
+  _renderPass = null
+  /** 描边叠加用临时渲染目标（双透视模式下独立渲染 OutlinePass） */
+  _outlineRT = null
+
   /** 上一次使用的 yaw/pitch（用于检测面板是否改了角度） */
   _lastYaw = null
   _lastPitch = null
@@ -105,16 +119,13 @@ export class EnvironmentManager {
     // 灯光/背景/曝光 不依赖 HDR，立即应用（确保 dirLight 立刻可用）
     this.applyAllParams()
 
-    // HDR 环境贴图异步加载，加载完成后重新应用 IBL 和背景
-    if (cfg.envMapEnabled) {
-      const hdrPath = cfg.envLight?.hdrPath ?? DEFAULT_HDR_PATH
-      await this.loadHdrEnvironment(hdrPath)
-      this.applyAllParams()
-    }
+    // 后期泛光（独立应用，参照 environment.js applyBloom）
+    this.applyBloom(cfg.bloom)
 
-    if (!cfg.envMapEnabled) {
-      this.scene.background = null
-    }
+    // 始终加载 HDR 环境贴图（IBL 照明需要，与 envMapEnabled 背景开关无关）
+    const hdrPath = cfg.envLight?.hdrPath ?? DEFAULT_HDR_PATH
+    await this.loadHdrEnvironment(hdrPath)
+    this.applyAllParams()
   }
 
   /**
@@ -133,28 +144,18 @@ export class EnvironmentManager {
     if (envInt > 0 && this.hdrTexture) {
       this.scene.environment = this.hdrTexture
       this.scene.environmentIntensity = envInt
-    } else if (envInt > 0) {
-      this.scene.environment = null
-      this.scene.environmentIntensity = envInt
     } else {
       this.scene.environment = null
       this.scene.environmentIntensity = 0
     }
 
-    // ---- 3. 背景 ----
-    // envMapEnabled 开关仅控制背景显隐，停用时换渐变底
+    // ---- 3. 背景（与 envMapEnabled 无关，bgIntensity 始终生效） ----
     const bgInt = cfg.envLight.bgIntensity
-    if (!cfg.envMapEnabled) {
-      this.scene.background = this.getGradientBackground()
-      this.scene.backgroundIntensity = 1
-    } else if (envInt === 0 && bgInt === 0) {
-      this.scene.background = this.getGradientBackground()
-      this.scene.backgroundIntensity = 1
-    } else if (bgInt > 0 && this.hdrTexture) {
+    if (bgInt > 0 && cfg.envMapEnabled && this.hdrTexture) {
       this.scene.background = this.hdrTexture
       this.scene.backgroundIntensity = bgInt
     } else if (bgInt > 0) {
-      this.scene.background = new THREE.Color(0x000000)
+      this.scene.background = this.getGradientBackground()
       this.scene.backgroundIntensity = bgInt
     } else {
       this.scene.background = new THREE.Color(BG_COLOR)
@@ -163,6 +164,8 @@ export class EnvironmentManager {
 
     // ---- 4. 曝光度 ----
     this.renderer.toneMappingExposure = cfg.envLight.exposure
+
+    // 注意：bloom 不在此处应用，由 _applyBloom 独立控制（参照 environment.js applyBloom）
   }
 
   /** 获取主方向光引用（可能为 null，applyConfig 后才有值） */
@@ -173,6 +176,196 @@ export class EnvironmentManager {
   /** 获取当前环境配置快照 */
   getConfig() {
     return this.config
+  }
+
+  /**
+   * Composer 是否已初始化。
+   * 渲染循环中用于判断是否走 composer.render()。
+   * @returns {boolean}
+   */
+  hasComposer() {
+    return !!this.composer
+  }
+
+  /**
+   * 通过合成器渲染一帧（后处理模式）。
+   * 渲染循环中调用，无需参数（使用构造时注入的 scene/camera）。
+   */
+  renderComposer() {
+    if (this._renderPass) {
+      this._renderPass.scene = this.scene
+      this._renderPass.camera = this.camera
+    }
+    // 临时让主相机也渲染 Layer 1（GLB），避免 dualPass 模式下 GLB 不可见
+    const savedMask = this.camera.layers.mask
+    this.camera.layers.enable(1)
+    try {
+      this.composer.render()
+    } finally {
+      this.camera.layers.mask = savedMask
+    }
+  }
+
+  /**
+   * 初始化后处理管道（RenderPass → UnrealBloomPass → OutputPass）。
+   * 必须在 camera 就绪后调用，只调用一次。
+   * bloomPass 始终在管道中，通过 .enabled 切换开关。
+   */
+  initPostProcessing() {
+    if (this.composer) return
+
+    const size = this.renderer.getSize(new THREE.Vector2())
+    const pixelRatio = this.renderer.getPixelRatio()
+
+    this.composer = new EffectComposer(this.renderer)
+    this.composer.setPixelRatio(pixelRatio)
+    this.composer.setSize(size.x, size.y)
+
+    // RenderPass：渲染场景到 composer 帧缓冲
+    this._renderPass = new RenderPass(this.scene, this.camera)
+    this.composer.addPass(this._renderPass)
+
+    // OutlinePass：选中部件描边（始终在管道中，通过 selectedObjects 控制）
+    this.outlineCamera = this.camera.clone()
+    this.outlineCamera.layers.enableAll()
+    this.outlinePass = new OutlinePass(
+      new THREE.Vector2(size.x, size.y), this.scene, this.outlineCamera
+    )
+    this.outlinePass.edgeStrength = 3.0
+    this.outlinePass.edgeGlow = 0.0
+    this.outlinePass.edgeThickness = 1.2
+    this.outlinePass.visibleEdgeColor.set(0x00ddff)
+    this.outlinePass.hiddenEdgeColor.set(0x444444)
+    this.outlinePass.selectedObjects = []
+    this.composer.addPass(this.outlinePass)
+
+    // OutputPass：色调映射 + 色彩空间转换
+    const outputPass = new OutputPass()
+    this.composer.addPass(outputPass)
+
+    // UnrealBloomPass：泛光后处理（始终在管道中，通过 enabled 切换）
+    this.bloomPass = new UnrealBloomPass(
+      new THREE.Vector2(size.x, size.y),
+      0.001, // 默认 strength
+      0,     // 默认 radius
+      0,     // 默认 threshold
+    )
+    this.bloomPass.enabled = false // 默认关闭
+    this.composer.addPass(this.bloomPass)
+
+    // ---- 描边叠加用正交场景（双透视模式下将描边 alpha 混合到屏幕） ----
+    this._overlayScene = new THREE.Scene()
+    this._overlayCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 10)
+    const overlayMat = new THREE.MeshBasicMaterial({
+      transparent: true,
+      depthTest: false,
+      depthWrite: false,
+      blending: THREE.NormalBlending,
+    })
+    this._overlayQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), overlayMat)
+    this._overlayScene.add(this._overlayQuad)
+  }
+
+  /**
+   * 更新 OutlinePass 选中对象（每帧调用）。
+   * @param {THREE.Object3D[]} selectedObjects - 当前选中的网格列表
+   */
+  updateOutline(selectedObjects) {
+    if (!this.outlinePass) return
+    this.outlinePass.selectedObjects = selectedObjects || []
+  }
+
+  /**
+   * 双透视模式下的描边叠加渲染。
+   *
+   * 在双透视三步合成完成后调用，将 OutlinePass 产生的描边
+   * 以 alpha 混合方式叠加到屏幕上，不影响已有的外壳 + GLB 合成结果。
+   *
+   * 原理：
+   * 1. OutlinePass.render() 输出到内部 RT（描边像素有 alpha=1，背景 alpha=0）
+   * 2. 用 alpha 混合将 RT 叠加到屏幕（alpha=0 区域完全透明，描边像素正常显示）
+   */
+  renderOutlineOverlay() {
+    if (!this.composer || !this.outlinePass) return
+    if (!this.outlinePass.selectedObjects?.length) return
+
+    const renderer = this.renderer
+    const size = renderer.getSize(new THREE.Vector2())
+    const pr = renderer.getPixelRatio()
+
+    // 确保临时渲染目标存在且尺寸匹配
+    if (!this._outlineRT) {
+      this._outlineRT = new THREE.WebGLRenderTarget(size.x * pr, size.y * pr, {
+        minFilter: THREE.LinearFilter,
+        magFilter: THREE.LinearFilter,
+        format: THREE.RGBAFormat,
+      })
+    } else {
+      this._outlineRT.setSize(size.x * pr, size.y * pr)
+    }
+
+    const savedBg = this.scene.background
+    const savedRT = renderer.getRenderTarget()
+    const savedAutoClear = renderer.autoClear
+    const savedCC = renderer.getClearColor(new THREE.Color())
+    const savedCA = renderer.getClearAlpha()
+
+    // 保存并禁用场景背景（避免 renderBackground 干扰 OutlinePass 内部渲染）
+    this.scene.background = null
+
+    // 同步 OutlinePass 相机
+    if (this.outlineCamera) {
+      this.outlineCamera.updateMatrixWorld()
+    }
+
+    try {
+      // 用 OutlinePass.render() 将描边渲染到 _outlineRT
+      // renderToScreen=false → 不输出到屏幕，输出到 writeBuffer（内部处理）
+      // 但 OutlinePass 没有 renderToScreen 参数...它依赖 composer 的 renderToScreen
+      // 所以我们直接用 renderer 手动渲染 OutlinePass
+
+      renderer.setRenderTarget(this._outlineRT)
+      renderer.setClearColor(0x000000, 0)
+      renderer.autoClear = true
+      renderer.clear(true, true, false)
+
+      // OutlinePass.render 会把描边像素写入 RT
+      // 方式：背景黑(alpha=0) + 描边像素(color, alpha=1)
+      this.outlinePass.render(
+        renderer,
+        this._outlineRT,   // writeBuffer
+        this._outlineRT,   // readBuffer (同一目标即可，OutlinePass 不做后处理)
+      )
+
+      // 用 alpha 混合将描边叠加到屏幕
+      // outlineRT 的 alpha=0 区域完全透明，描边像素正常显示
+      if (this._overlayQuad) {
+        this._overlayQuad.material.map = this._outlineRT.texture
+        renderer.setRenderTarget(null)
+        renderer.autoClear = false
+        renderer.render(this._overlayScene, this._overlayCam)
+      }
+    } finally {
+      this.scene.background = savedBg
+      renderer.setRenderTarget(savedRT)
+      renderer.setClearColor(savedCC, savedCA)
+      renderer.autoClear = savedAutoClear
+    }
+  }
+
+  /**
+   * 窗口/容器 resize 时更新 composer 尺寸。
+   * @param {number} width
+   * @param {number} height
+   */
+  resizeBloom(width, height) {
+    if (this.composer) {
+      this.composer.setSize(width, height)
+    }
+    if (this._outlineRT) {
+      const pr = this.renderer.getPixelRatio()
+      this._outlineRT.setSize(width * pr, height * pr)
+    }
   }
 
   /** 释放环境相关 GPU 资源 */
@@ -189,6 +382,7 @@ export class EnvironmentManager {
       this.gradientBgTexture.dispose()
       this.gradientBgTexture = null
     }
+    this._disposeComposer()
     this.removeLightHelper()
     // 移除灯光
     if (this.dirLight) { this.scene.remove(this.dirLight); this.dirLight = null }
@@ -196,16 +390,11 @@ export class EnvironmentManager {
     if (this.fillLight) { this.scene.remove(this.fillLight); this.fillLight = null }
   }
 
-  /** 控制环境贴图是否启用，关闭时背景透明 */
+  /** 控制环境贴图是否启用 */
   controlEnvMapEnabled(enabled) {
     if (!this.config) return
     this.config.envMapEnabled = enabled
-
-    if (!enabled) {
-      this.scene.background = null
-    } else {
-      this.applyAllParams()
-    }
+    this.applyAllParams()
   }
 
   /**
@@ -454,9 +643,6 @@ export class EnvironmentManager {
     canvas.height = 512
     const ctx2d = canvas.getContext('2d')
     const grad = ctx2d.createLinearGradient(0, 0, 0, 512)
-    for (const { stop, color } of GRADIENT_COLORS) {
-      grad.addColorStop(stop, color)
-    }
     ctx2d.fillStyle = grad
     ctx2d.fillRect(0, 0, 16, 512)
     this.gradientBgTexture = new THREE.CanvasTexture(canvas)
@@ -482,6 +668,51 @@ export class EnvironmentManager {
         },
       )
     })
+  }
+
+  // ========== 后期泛光 (Bloom) ==========
+
+  /**
+   * 应用 Bloom 配置：切换 enabled 并更新参数（独立方法，不由 applyAllParams 调用）。
+   * bloomPass 始终在管道中，仅通过 .enabled 开关控制。
+   * @param {Object} bloomCfg - { enabled, strength, radius, threshold }
+   */
+  applyBloom(bloomCfg) {
+    if (!this.bloomPass) return
+    const cfg = bloomCfg ?? {}
+    this.bloomPass.enabled = !!cfg.enabled
+    this.bloomPass.strength = cfg.strength ?? 0.001
+    this.bloomPass.radius = cfg.radius ?? 0
+    this.bloomPass.threshold = cfg.threshold ?? 0
+  }
+
+  /** 销毁 composer 及相关资源（仅在 dispose 时调用） */
+  _disposeComposer() {
+    if (!this.composer) return
+    this.composer.renderTarget1?.dispose()
+    this.composer.renderTarget2?.dispose()
+    this._outlineRT?.dispose()
+    this._outlineRT = null
+    if (this._overlayQuad) {
+      this._overlayQuad.geometry.dispose()
+      this._overlayQuad.material.dispose()
+      this._overlayQuad = null
+    }
+    this._overlayScene = null
+    this._overlayCam = null
+    if (this.bloomPass) {
+      this.bloomPass.renderTargetBright?.dispose()
+      this.bloomPass.renderTargetHorizontal?.dispose()
+      this.bloomPass.renderTargetVertical?.dispose()
+    }
+    if (this.outlinePass) {
+      this.outlinePass.dispose()
+    }
+    this.composer = null
+    this.bloomPass = null
+    this.outlinePass = null
+    this.outlineCamera = null
+    this._renderPass = null
   }
 
 }

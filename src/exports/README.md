@@ -1,14 +1,34 @@
 # InsBimPlusViewer 外部 API 文档
 
-在 InsBimPlusViewer 组件外部操作 3D 场景的工具类，通过相对路径引入即可使用。
+在 InsBimPlusViewer 组件外部操作 3D 场景的工具类，通过 NPM 包引入即可使用。
 
 ## 引入方式
 
 ```js
-import { bimControls } from '@/exports/bimControls'
+import { bimControls } from '@ins/vam2-plugin-bim'
 ```
 
 > 需在 `<InsBimPlusViewer>` 组件的 `@ready` 事件触发后才能调用，此时查看器实例已注册。
+
+## 多实例支持
+
+支持同一页面多个 `<InsBimPlusViewer>` 实例。所有方法**最后一个参数**为 `viewerId`（可选）：
+
+- **单实例**：省略 `viewerId`，自动操作第一个注册的实例
+- **多实例**：传入目标 viewer 的 `viewerId`，精确操作指定实例
+
+```js
+// 单实例用法
+bimControls.highlightPart('Wall_001')
+
+// 多实例用法
+bimControls.highlightPart('Wall_001', 'ins-bim-viewer-twin')
+```
+
+```html
+<InsBimPlusViewer ref="viewerA" />
+<InsBimPlusViewer ref="viewerB" :viewerId="'ins-bim-viewer-twin'" />
+```
 
 ---
 
@@ -73,7 +93,7 @@ methods: {
 
 ## 数据加载
 
-### `loadTilesets(sources)`
+### `loadTilesets(sources, viewerId?)`
 
 加载 3D Tiles 地形数据。
 
@@ -99,7 +119,7 @@ bimControls.loadTilesets([
 
 ---
 
-### `loadGltfModels(sources, geoOrigin?)`
+### `loadGltfModels(sources, geoOrigin?, viewerId?)`
 
 依次加载 GLTF/GLB 模型。若之前调用过 `applyMaterialConfig`，会自动将材质配置应用到新加载的模型。
 
@@ -143,7 +163,7 @@ bimControls.loadGltfModels(
 
 ---
 
-### `renderLabels(config)`
+### `renderLabels(config, viewerId?)`
 
 加载并渲染 3D 标签，完成后自动飞行到标签位置。
 
@@ -170,7 +190,7 @@ bimControls.loadGltfModels(
 | `ringColor` | `string` | `'#fff'` | 圆环/涟漪/名称牌主题色，CSS 颜色值 |
 | `scale` | `number` | `200` | 整体缩放 |
 | `labelHeight` | `number` | `0.2` | 图标离地高度 |
-| `emissiveBoost` | `number` | `0.5` | 自发光增亮强度，不改变图标颜色仅提升亮度（0=关闭，建议 0.2~0.5） |
+| `emissiveBoost` | `number` | `0.3` | 自发光增亮强度，不改变图标颜色仅提升亮度（0=关闭，建议 0.2~0.5） |
 | `showName` | `boolean` | `true` | 是否显示名称牌 |
 | `nameTagStyle` | `string` | `'stacked'` | 名称牌样式：`bubble` / `glow` / `plaque` / `stacked` |
 | `nameTagHeight` | `number` | `1.5` | 名称牌偏移距离 |
@@ -195,16 +215,18 @@ bimControls.renderLabels({
             altitude: 2711.1,
             model: 'L05',
             opts: {
-                ringColor: '#fff',
+                ringColor: '#88ddff',
                 animationType: 'bounce',
                 animEnabled: true,
                 scale: 200,
-                labelHeight: 0.2,
+                labelHeight: 0.3,
                 rippleEnabled: true,
                 showName: true,
-                nameTagStyle: 'stacked',
-                nameTagHeight: 1.5,
-                nameTagScale: 1,
+                nameTagStyle: 'glow',
+                nameTagHeight: 1.3,
+                nameTagScale: 1.5,
+                nameTagRot: 0,
+                nameTagOrientation: 'vertical',
                 texture: 'T0538',
                 rotation: 0,
             },
@@ -228,49 +250,49 @@ bimControls.renderLabels({
 
 > L06（label_e2）复用 L05 的贴图资源。配置中使用 `texture: 'T05xx'` 即可。
 
-| ID | 名称 | 文件 | 分类 |
-|----|------|------|------|
-| `T0501` | 安防计算机 | `security_computer.jpg` | 设备/服务器 |
-| `T0502` | 安全帽型定位标签 | `helmet_tag.jpg` | 定位/标签 |
-| `T0503` | 车辆测速一体机 | `veh_speed.jpg` | 车辆 |
-| `T0504` | 车辆道闸（栅栏型） | `gate_fence.jpg` | 道闸/门禁 |
-| `T0505` | 车辆道闸（直杆型） | `gate_straight.jpg` | 道闸/门禁 |
-| `T0506` | 车辆监控主体 | `veh_mon.jpg` | 车辆 |
-| `T0507` | 车载定位终端 | `veh_pos.jpg` | 定位/标签 |
-| `T0508` | 沉降环 | `settle_ring.jpg` | 工程/安全 |
-| `T0509` | 道路预警机 | `road_warn.jpg` | 工程/安全 |
-| `T0510` | 吊牌型定位标签 | `hang_tag.jpg` | 定位/标签 |
-| `T0511` | 定位基站 | `loc_base.jpg` | 定位/标签 |
-| `T0512` | 工业车辆 | `ind_veh.jpg` | 车辆 |
-| `T0513` | 固定枪机 | `cam_bullet.jpg` | 摄像头 |
-| `T0514` | 固定球型摄像头（防爆） | `cam_expl_dome.jpg` | 摄像头 |
-| `T0515` | 固定智能球型摄像头 | `cam_smart_dome.jpg` | 摄像头 |
-| `T0516` | 管理人员 | `mgmt_staff.jpg` | 人员 |
-| `T0517` | 户外LED大屏 | `led_screen.jpg` | 设备/服务器 |
-| `T0518` | 环境监控 | `env_mon.jpg` | 监测/环境 |
-| `T0519` | 混凝土车辆 | `concrete_veh.jpg` | 车辆 |
-| `T0520` | 监测点 | `mon_point.jpg` | 监测/环境 |
-| `T0521` | 控制主机 | `control_host.jpg` | 设备/服务器 |
-| `T0522` | 流量计 | `flow_meter.jpg` | 监测/环境 |
-| `T0523` | 普通车辆 | `ord_veh.jpg` | 车辆 |
-| `T0524` | 起重机 | `crane.jpg` | 工程/安全 |
-| `T0525` | 气象监测 | `weather_mon.jpg` | 监测/环境 |
-| `T0526` | 三辊闸 | `tri_gate.jpg` | 道闸/门禁 |
-| `T0527` | 视频监控存储设备 | `video_storage.jpg` | 设备/服务器 |
-| `T0528` | 视频平台管理服务器 | `video_server.jpg` | 设备/服务器 |
-| `T0529` | 收扩机（通讯终端） | `comm_terminal.jpg` | 设备/服务器 |
-| `T0530` | 塔吊 | `t_crane.jpg` | 工程/安全 |
-| `T0531` | 通用车辆 | `gen_veh.jpg` | 车辆 |
-| `T0532` | 土体位移计 | `soil_gauge.jpg` | 监测/环境 |
-| `T0533` | 危化品 | `haz_chem.jpg` | 工程/安全 |
-| `T0534` | 无线网桥 | `wireless_bridge.jpg` | 设备/服务器 |
-| `T0535` | 压力容器 | `pressure_vessel.jpg` | 工程/安全 |
-| `T0536` | 扬尘监测 | `dust_mon.jpg` | 监测/环境 |
-| `T0537` | 翼闸（左中右） | `flap_gate.jpg` | 道闸/门禁 |
-| `T0538` | 智能轻便型便携球机 | `cam_dome.jpg` | 摄像头 |
-| `T0539` | 智能巡检AI服务器 | `ai_server.jpg` | 设备/服务器 |
-| `T0540` | 污水 | `sewage.jpg` | 监测/环境 |
-| `T0541` | 扬尘噪声 | `dust_noise.jpg` | 监测/环境 |
+| ID | 预览 | 名称 | 文件 | 分类 |
+|----|------|------|------|------|
+| `T0501` | <img src="../../public/assets/model/image/security_computer.jpg" width="48"> | 安防计算机 | `security_computer.jpg` | 设备/服务器 |
+| `T0502` | <img src="../../public/assets/model/image/helmet_tag.jpg" width="48"> | 安全帽型定位标签 | `helmet_tag.jpg` | 定位/标签 |
+| `T0503` | <img src="../../public/assets/model/image/veh_speed.jpg" width="48"> | 车辆测速一体机 | `veh_speed.jpg` | 车辆 |
+| `T0504` | <img src="../../public/assets/model/image/gate_fence.jpg" width="48"> | 车辆道闸（栅栏型） | `gate_fence.jpg` | 道闸/门禁 |
+| `T0505` | <img src="../../public/assets/model/image/gate_straight.jpg" width="48"> | 车辆道闸（直杆型） | `gate_straight.jpg` | 道闸/门禁 |
+| `T0506` | <img src="../../public/assets/model/image/veh_mon.jpg" width="48"> | 车辆监控主体 | `veh_mon.jpg` | 车辆 |
+| `T0507` | <img src="../../public/assets/model/image/veh_pos.jpg" width="48"> | 车载定位终端 | `veh_pos.jpg` | 定位/标签 |
+| `T0508` | <img src="../../public/assets/model/image/settle_ring.jpg" width="48"> | 沉降环 | `settle_ring.jpg` | 工程/安全 |
+| `T0509` | <img src="../../public/assets/model/image/road_warn.jpg" width="48"> | 道路预警机 | `road_warn.jpg` | 工程/安全 |
+| `T0510` | <img src="../../public/assets/model/image/hang_tag.jpg" width="48"> | 吊牌型定位标签 | `hang_tag.jpg` | 定位/标签 |
+| `T0511` | <img src="../../public/assets/model/image/loc_base.jpg" width="48"> | 定位基站 | `loc_base.jpg` | 定位/标签 |
+| `T0512` | <img src="../../public/assets/model/image/ind_veh.jpg" width="48"> | 工业车辆 | `ind_veh.jpg` | 车辆 |
+| `T0513` | <img src="../../public/assets/model/image/cam_bullet.jpg" width="48"> | 固定枪机 | `cam_bullet.jpg` | 摄像头 |
+| `T0514` | <img src="../../public/assets/model/image/cam_expl_dome.jpg" width="48"> | 固定球型摄像头（防爆） | `cam_expl_dome.jpg` | 摄像头 |
+| `T0515` | <img src="../../public/assets/model/image/cam_smart_dome.jpg" width="48"> | 固定智能球型摄像头 | `cam_smart_dome.jpg` | 摄像头 |
+| `T0516` | <img src="../../public/assets/model/image/mgmt_staff.jpg" width="48"> | 管理人员 | `mgmt_staff.jpg` | 人员 |
+| `T0517` | <img src="../../public/assets/model/image/led_screen.jpg" width="48"> | 户外LED大屏 | `led_screen.jpg` | 设备/服务器 |
+| `T0518` | <img src="../../public/assets/model/image/env_mon.jpg" width="48"> | 环境监控 | `env_mon.jpg` | 监测/环境 |
+| `T0519` | <img src="../../public/assets/model/image/concrete_veh.jpg" width="48"> | 混凝土车辆 | `concrete_veh.jpg` | 车辆 |
+| `T0520` | <img src="../../public/assets/model/image/mon_point.jpg" width="48"> | 监测点 | `mon_point.jpg` | 监测/环境 |
+| `T0521` | <img src="../../public/assets/model/image/control_host.jpg" width="48"> | 控制主机 | `control_host.jpg` | 设备/服务器 |
+| `T0522` | <img src="../../public/assets/model/image/flow_meter.jpg" width="48"> | 流量计 | `flow_meter.jpg` | 监测/环境 |
+| `T0523` | <img src="../../public/assets/model/image/ord_veh.jpg" width="48"> | 普通车辆 | `ord_veh.jpg` | 车辆 |
+| `T0524` | <img src="../../public/assets/model/image/crane.jpg" width="48"> | 起重机 | `crane.jpg` | 工程/安全 |
+| `T0525` | <img src="../../public/assets/model/image/weather_mon.jpg" width="48"> | 气象监测 | `weather_mon.jpg` | 监测/环境 |
+| `T0526` | <img src="../../public/assets/model/image/tri_gate.jpg" width="48"> | 三辊闸 | `tri_gate.jpg` | 道闸/门禁 |
+| `T0527` | <img src="../../public/assets/model/image/video_storage.jpg" width="48"> | 视频监控存储设备 | `video_storage.jpg` | 设备/服务器 |
+| `T0528` | <img src="../../public/assets/model/image/video_server.jpg" width="48"> | 视频平台管理服务器 | `video_server.jpg` | 设备/服务器 |
+| `T0529` | <img src="../../public/assets/model/image/comm_terminal.jpg" width="48"> | 收扩机（通讯终端） | `comm_terminal.jpg` | 设备/服务器 |
+| `T0530` | <img src="../../public/assets/model/image/t_crane.jpg" width="48"> | 塔吊 | `t_crane.jpg` | 工程/安全 |
+| `T0531` | <img src="../../public/assets/model/image/gen_veh.jpg" width="48"> | 通用车辆 | `gen_veh.jpg` | 车辆 |
+| `T0532` | <img src="../../public/assets/model/image/soil_gauge.jpg" width="48"> | 土体位移计 | `soil_gauge.jpg` | 监测/环境 |
+| `T0533` | <img src="../../public/assets/model/image/haz_chem.jpg" width="48"> | 危化品 | `haz_chem.jpg` | 工程/安全 |
+| `T0534` | <img src="../../public/assets/model/image/wireless_bridge.jpg" width="48"> | 无线网桥 | `wireless_bridge.jpg` | 设备/服务器 |
+| `T0535` | <img src="../../public/assets/model/image/pressure_vessel.jpg" width="48"> | 压力容器 | `pressure_vessel.jpg` | 工程/安全 |
+| `T0536` | <img src="../../public/assets/model/image/dust_mon.jpg" width="48"> | 扬尘监测 | `dust_mon.jpg` | 监测/环境 |
+| `T0537` | <img src="../../public/assets/model/image/flap_gate.jpg" width="48"> | 翼闸（左中右） | `flap_gate.jpg` | 道闸/门禁 |
+| `T0538` | <img src="../../public/assets/model/image/cam_dome.jpg" width="48"> | 智能轻便型便携球机 | `cam_dome.jpg` | 摄像头 |
+| `T0539` | <img src="../../public/assets/model/image/ai_server.jpg" width="48"> | 智能巡检AI服务器 | `ai_server.jpg` | 设备/服务器 |
+| `T0540` | <img src="../../public/assets/model/image/sewage.jpg" width="48"> | 污水 | `sewage.jpg` | 监测/环境 |
+| `T0541` | <img src="../../public/assets/model/image/dust_noise.jpg" width="48"> | 扬尘噪声 | `dust_noise.jpg` | 监测/环境 |
 
 > 图片文件位于 `public/assets/model/image/` 目录下。
 
@@ -278,7 +300,7 @@ bimControls.renderLabels({
 
 ## 配置管理（整体替换）
 
-### `applyEnvConfig(config)`
+### `applyEnvConfig(config, viewerId?)`
 
 应用环境配置（天空/HDR/光照/曝光），覆盖当前所有环境参数。
 
@@ -293,7 +315,7 @@ bimControls.applyEnvConfig(sceneConfig.envConfig)
 
 ---
 
-### `applyMaterialConfig(config)`
+### `applyMaterialConfig(config, viewerId?)`
 
 应用材质映射配置，并重新应用到所有已加载的 GLB 模型。后续调用 `loadGltfModels` 时也会自动应用此配置。
 
@@ -308,7 +330,7 @@ bimControls.applyMaterialConfig(materialConfig)
 
 ---
 
-### `applyCameraConfig(cfg)`
+### `applyCameraConfig(cfg, viewerId?)`
 
 设置相机位置和观察目标。缺省项保持当前值。
 
@@ -325,7 +347,7 @@ bimControls.applyCameraConfig({
 
 ---
 
-### `getCameraInfo()`
+### `getCameraInfo(viewerId?)`
 
 获取当前相机位置和观察目标，返回格式与 `biz-config.js` 的 `camera` 配置一致，可直接用于 `applyCameraConfig`。
 
@@ -346,7 +368,7 @@ bimControls.applyCameraConfig(savedView)
 
 ---
 
-### `resetCamera(cameraConfig?, duration?)`
+### `resetCamera(cameraConfig?, duration?, viewerId?)`
 
 回归视角。传入 cameraConfig 时平滑飞行到指定位置，否则优先读取 `biz-config.js` 配置，均无配置时自动聚焦到已加载场景的包围盒中心。
 
@@ -375,7 +397,7 @@ bimControls.resetCamera(null, 1000)
 
 ## 运行时细粒度调参
 
-### `setEnvParam(key, value)`
+### `setEnvParam(key, value, viewerId?)`
 
 修改单个环境参数并立即生效。`key` 支持点分路径。
 
@@ -392,10 +414,20 @@ bimControls.resetCamera(null, 1000)
 | `dirLight.yaw` | 主方向光水平角度 | 0~360 度 |
 | `dirLight.pitch` | 主方向光俯仰角度 | 0~90 度 |
 | `dirLight.color` | 主方向光颜色 | CSS 颜色值 |
+| `dirLight.shadow.enabled` | 阴影开关 | true/false |
+| `dirLight.shadow.resolution` | 阴影贴图分辨率 | 512/1024/2048/4096 |
+| `dirLight.shadow.range` | 阴影相机范围 | 数值（米），默认 62 |
+| `dirLight.shadow.offsetX` | 阴影 X 偏移 | 数值 |
+| `dirLight.shadow.offsetY` | 阴影 Y 偏移 | 数值 |
+| `dirLight.shadow.bias` | 阴影偏移修正 | 数值，默认 -0.001 |
 | `envLight.intensity` | IBL 环境光强度 | 0~5 |
 | `envLight.bgIntensity` | 背景强度 | 0~5 |
 | `envLight.exposure` | 色调映射曝光 | 0.1~5 |
 | `envMapEnabled` | 环境贴图/背景显隐 | true/false |
+| `bloom.enabled` | 后期泛光开关 | true/false |
+| `bloom.strength` | 泛光强度 | 0~5，默认 0.001 |
+| `bloom.radius` | 泛光扩散半径 | 0~2，默认 0 |
+| `bloom.threshold` | 泛光亮度过滤阈值 | 0~1，默认 0 |
 
 ```js
 // 微调曝光
@@ -413,7 +445,7 @@ bimControls.setEnvParam('envMapEnabled', false)
 
 ---
 
-### `getEnvConfig()`
+### `getEnvConfig(viewerId?)`
 
 返回当前环境配置对象（只读快照），可用于读取当前参数值。
 
@@ -426,7 +458,7 @@ console.log(cfg.envLight.exposure) // 1.3
 
 ## 部件操作
 
-### `getModelTreeById(id)`
+### `getModelTreeById(id, viewerId?)`
 
 通过来源 ID 获取模型结构树，返回递归树形数据。
 
@@ -445,7 +477,7 @@ if (tree) {
 
 ---
 
-### `findPartByName(name)`
+### `findPartByName(name, viewerId?)`
 
 按名称查找部件，返回结构化信息（与 `gltf-pick` 事件 info 格式一致）。
 
@@ -463,49 +495,49 @@ if (info) {
 
 ---
 
-### `setPartMaterial(name, matKey)`
+### `setPartMaterial(name, matKey, viewerId?)`
 
-按部件名称修改材质。
+按部件名称修改材质。传入空字符串或 falsy 值时重置回 GLB 原始材质（同时移除线框覆盖层）。
 
 | 参数 | 类型 | 说明 |
 |------|------|------|
 | `name` | `string` | 网格名称 |
-| `matKey` | `string \| THREE.Material` | 材质库 ID（如 `'m5'`）或 THREE.Material 实例 |
+| `matKey` | `string \| THREE.Material` | 材质库 ID（如 `'m5'`）、线框材质 ID（如 `'m58'`）或 THREE.Material 实例；falsy 值重置为原始材质 |
 | **返回** | `boolean` | 是否成功 |
 
 ```js
 // 使用材质库 ID
 bimControls.setPartMaterial('Wall_001', 'm5')
 
+// 使用线框材质
+bimControls.setPartMaterial('Wall_001', 'm58')
+
 // 使用自定义材质
 const mat = new THREE.MeshStandardMaterial({ color: 0xff0000 })
 bimControls.setPartMaterial('Wall_001', mat)
+
+// 重置回原始材质
+bimControls.setPartMaterial('Wall_001', '')
 ```
 
 ---
 
-### `highlightPart(name, options?)`
+### `highlightPart(name, viewerId?)`
 
 按名称高亮部件（半透明 + 轮廓线）并飞行聚焦。
 
 | 参数 | 类型 | 说明 |
 |------|------|------|
 | `name` | `string` | 部件名称 |
-| `options` | `Object` | 可选，高亮配置选项 |
-| `options.color` | `number \| string` | 轮廓线/线框颜色，默认 `0xadff2f` |
-| `options.edgeHighlight` | `boolean` | 是否使用 EdgesGeometry 线框边缘高亮，默认 `false` |
 | **返回** | `Object \| false` | 部件信息或 false |
 
 ```js
 const info = bimControls.highlightPart('Roof_001')
-
-// 自定义高亮颜色和边缘高亮
-bimControls.highlightPart('Roof_001', { color: 0xff6600, edgeHighlight: true })
 ```
 
 ---
 
-### `setPartVisible(name, visible)`
+### `setPartVisible(name, visible, viewerId?)`
 
 按名称设置部件显隐。
 
@@ -522,7 +554,7 @@ bimControls.setPartVisible('Wall_001', true)
 
 ---
 
-### `clearHighlight()`
+### `clearHighlight(viewerId?)`
 
 清除当前高亮状态。
 
@@ -534,7 +566,7 @@ bimControls.clearHighlight()
 
 ## 标注管理
 
-### `addAnnotation(position, element, vueApp?)`
+### `addAnnotation(position, element, vueApp?, viewerId?)`
 
 在 3D 世界坐标处添加 HTML 标注。
 
@@ -557,7 +589,7 @@ bimControls.addAnnotation(info.worldPosition, el, app)
 
 ---
 
-### `clearAnnotations()`
+### `clearAnnotations(viewerId?)`
 
 清除所有 HTML 标注（自动 unmount 关联的 Vue 组件）。
 
@@ -569,7 +601,7 @@ bimControls.clearAnnotations()
 
 ## 图层控制
 
-### `controlEnvEnabled(enabled)`
+### `controlEnvEnabled(enabled, viewerId?)`
 
 控制环境贴图是否启用。
 
@@ -583,7 +615,7 @@ bimControls.controlEnvEnabled(false)
 
 ---
 
-### `setModelVisible(id, visible, type?)`
+### `setModelVisible(id, visible, type?, viewerId?)`
 
 根据来源 ID 设置模型显隐，支持 3D Tiles 和 GLB/GLTF。
 
@@ -607,7 +639,7 @@ bimControls.setModelVisible('rm-glb', true)
 
 ---
 
-### `setModelVisibleByType(type, visible)`
+### `setModelVisibleByType(type, visible, viewerId?)`
 
 按类型批量设置所有模型的显隐。
 
@@ -615,6 +647,7 @@ bimControls.setModelVisible('rm-glb', true)
 |------|------|------|
 | `type` | `'3dtiles' \| 'glb' \| 'gltf'` | 模型类型 |
 | `visible` | `boolean` | 是否可见 |
+| `viewerId` | `string` | 可选，查看器 ID |
 
 ```js
 // 隐藏所有地形
@@ -629,7 +662,26 @@ bimControls.setModelVisibleByType('gltf', true)
 
 ---
 
-### `removeModel(id, type?)`
+### `setTilesOpacity(opacity, viewerId?)`
+
+设置所有地形瓦片的透明度。半透明时自动关闭 `depthWrite` 以避免渲染异常，新加载的瓦片也会自动同步当前透明度设置。
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `opacity` | `number` | 透明度，0~1（1 = 不透明，0 = 完全透明） |
+| `viewerId` | `string` | 可选，查看器 ID |
+
+```js
+// 地形半透明
+bimControls.setTilesOpacity(0.5)
+
+// 恢复不透明
+bimControls.setTilesOpacity(1)
+```
+
+---
+
+### `removeModel(id, type?, viewerId?)`
 
 根据来源 ID 移除模型，释放相关资源。
 
@@ -650,7 +702,22 @@ bimControls.removeModel('rm-glb')
 
 ---
 
-### `setDualPass(enabled)`
+### `getDualPass(viewerId?)`
+
+获取当前双透视模式状态。
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `viewerId` | `string` | 可选，查看器 ID |
+| **返回** | `boolean` | 当前是否启用双透视 |
+
+```js
+const enabled = bimControls.getDualPass()
+```
+
+---
+
+### `setDualPass(enabled, viewerId?)`
 
 切换双相机透视渲染模式。ON 时 GLB 透明叠加在 3D Tiles 外壳上，OFF 时单层渲染。
 
@@ -664,7 +731,7 @@ bimControls.setDualPass(true)
 
 ---
 
-### `setLabelVisible(type, visible)`
+### `setLabelVisible(type, visible, viewerId?)`
 
 切换标签图层的显隐。
 
@@ -679,7 +746,33 @@ bimControls.setLabelVisible('label', false)
 
 ---
 
-### `flyToModel(id, duration?, type?)`
+### `toggleLightHelper(show, viewerId?)`
+
+显示/隐藏灯光方向辅助线（可拖拽调整光照方向）。
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `show` | `boolean` | 是否显示辅助线 |
+
+```js
+bimControls.toggleLightHelper(true)
+bimControls.toggleLightHelper(false)
+```
+
+---
+
+### `refreshSceneShadows(viewerId?)`
+
+刷新场景阴影设置。遍历场景所有 mesh 设置 `castShadow` / `receiveShadow`，并重新适配阴影相机范围。模型加载后会自动调用，一般无需手动触发。
+
+```js
+// 动态添加模型后手动刷新
+bimControls.refreshSceneShadows()
+```
+
+---
+
+### `flyToModel(id, duration?, type?, viewerId?)`
 
 根据来源 ID 飞行定位到指定模型。
 
@@ -703,7 +796,7 @@ bimControls.flyToModel('rm-model')
 
 ---
 
-### `flyToLabel(id, duration?)`
+### `flyToLabel(id, duration?, viewerId?)`
 
 根据标签 ID 飞行定位到对应 3D 标签。
 
@@ -718,7 +811,7 @@ bimControls.flyToLabel(1, 2000)
 
 ---
 
-### `setGltfGeoOrigin(newGeoInfo)`
+### `setGltfGeoOrigin(newGeoInfo, viewerId?)`
 
 动态更新所有 GLB 模型的场景偏移配置（无需重新加载模型）。支持两种模式：
 
@@ -755,28 +848,41 @@ await bimControls.setGltfGeoOrigin({
 
 ---
 
+## 生命周期
+
+### `dispose(viewerId?)`
+
+释放 `bimControls` 内部缓存的 GPU 资源（材质配置器缓存、纹理等）。传入 `viewerId` 时只释放指定查看器的缓存，省略时释放所有。查看器销毁时自动调用，也可提前手动调用。
+
+```js
+// 释放指定查看器的缓存
+bimControls.dispose('ins-bim-viewer-twin')
+
+// 释放所有缓存
+bimControls.dispose()
+```
+
+---
+
 ## 完整示例
 
 ```vue
 <template>
-    <div style="width: 100%; height: 100%">
+    <VamPage size="fill" pure>
         <InsBimPlusViewer
-            ref="bimViewer"
             @ready="onReady"
             @gltf-pick="onPick"
             @label-click="onLabelClick"
             @model-loaded="onModelLoaded"
             @error="onError"
         />
-    </div>
+    </VamPage>
 </template>
 
 <script>
-import { bimControls } from '@/exports/bimControls'
-import InsBimPlusViewer from '@/components/InsBimViewer/index.vue'
+import { bimControls } from '@ins/vam2-plugin-bim'  // 也可以直接用controller
 
 export default {
-    components: { InsBimPlusViewer },
     data() {
         return {
             tilesetSources: [
@@ -785,6 +891,7 @@ export default {
             gltfSources: [
                 { id: 'rm-glb', url: 'http://server/data/gltf/rm/RM_.glb' },
             ],
+            controler: null  // 底层查看器
         }
     },
     methods: {
@@ -793,17 +900,22 @@ export default {
          * @param {BimViewerController} controller - 底层查看器实例
          */
         async onReady(controller) {
+            this.controler = controler
+
             // 1. 加载环境配置（天空/HDR/光照/曝光）
-            await bimControls.applyEnvConfig(window.BizConfig?.sceneConfig?.envConfig)
+            import sceneConfig from './config/bim-scene-config.js'
+            await bimControls.applyEnvConfig(sceneConfig.envConfig)
 
             // 2. 加载材质配置（自动应用到后续加载的模型）
-            bimControls.applyMaterialConfig(window.BizConfig?.sceneConfig?.materialConfig)
+            import materialConfig from './config/material-config.js'
+            bimControls.applyMaterialConfig(materialConfig)
 
             // 3. 加载 3D Tiles 地形
             await bimControls.loadTilesets(this.tilesetSources)
 
-            // 4. 加载 GLB 模型
-            await bimControls.loadGltfModels(this.gltfSources)
+            // 4. 加载 GLB 模型（自动应用已设置的材质配置）
+            // geoOrigin 可从 sceneConfig 读取，不传则不做地理配准
+            await bimControls.loadGltfModels(this.gltfSources, sceneConfig.geoOrigin)
 
             // 5. 渲染 3D 标签
             bimControls.renderLabels({ type: 'label', list: [...] })

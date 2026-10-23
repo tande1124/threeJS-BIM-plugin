@@ -1,9 +1,21 @@
 <template>
   <el-form label-width="72px" size="small" @submit.prevent>
-    <!-- 基础 -->
-    <div class="env-section">基础</div>
+    <!-- 环境光照 -->
+    <div class="env-section">环境光照</div>
     <el-form-item label="HDR 贴图">
       <el-switch v-model="cfg.envMapEnabled" @change="applyEnvMap" />
+    </el-form-item>
+       <el-form-item label="IBL 强度">
+      <el-input-number v-model="cfg.envLight.intensity" :min="0" :max="20" :step="0.1" :precision="1" controls-position="right"
+        @change="apply('envLight.intensity', cfg.envLight.intensity)" />
+    </el-form-item>
+    <el-form-item label="背景强度">
+      <el-input-number v-model="cfg.envLight.bgIntensity" :min="0" :max="5" :step="0.1" :precision="1" controls-position="right"
+        @change="apply('envLight.bgIntensity', cfg.envLight.bgIntensity)" />
+    </el-form-item>
+    <el-form-item label="曝光度">
+      <el-input-number v-model="cfg.envLight.exposure" :min="0" :max="5" :step="0.1" :precision="1" controls-position="right"
+        @change="apply('envLight.exposure', cfg.envLight.exposure)" />
     </el-form-item>
 
     <!-- 主方向光 -->
@@ -24,16 +36,10 @@
       <el-color-picker v-model="cfg.dirLight.color" :show-alpha="false" :teleported="false"
         @change="apply('dirLight.color', cfg.dirLight.color)" />
     </el-form-item>
-    
-    <!-- 方向控制 -->
-    <div class="env-section">方向控制</div>
     <el-form-item label="控制线">
       <el-switch v-model="showLightHelper" @change="onToggleLightHelper" />
     </el-form-item>
-
-    <!-- 阴影 -->
-    <div class="env-section">阴影</div>
-    <el-form-item label="启用">
+    <el-form-item label="光照阴影">
       <el-switch v-model="cfg.dirLight.shadow.enabled"
         @change="apply('dirLight.shadow.enabled', cfg.dirLight.shadow.enabled)" />
     </el-form-item>
@@ -65,20 +71,27 @@
       </el-form-item>
     </template>
 
-    <!-- 环境光照 -->
-    <div class="env-section">环境光照</div>
-    <el-form-item label="IBL 强度">
-      <el-input-number v-model="cfg.envLight.intensity" :min="0" :max="5" :step="0.1" :precision="1" controls-position="right"
-        @change="apply('envLight.intensity', cfg.envLight.intensity)" />
+    <!-- 后期泛光 -->
+    <div class="env-section">后期泛光</div>
+    <el-form-item label="启用">
+      <el-switch v-model="cfg.bloom.enabled"
+        @change="apply('bloom.enabled', cfg.bloom.enabled)" />
     </el-form-item>
-    <el-form-item label="背景强度">
-      <el-input-number v-model="cfg.envLight.bgIntensity" :min="0" :max="5" :step="0.1" :precision="1" controls-position="right"
-        @change="apply('envLight.bgIntensity', cfg.envLight.bgIntensity)" />
-    </el-form-item>
-    <el-form-item label="曝光度">
-      <el-input-number v-model="cfg.envLight.exposure" :min="0" :max="5" :step="0.1" :precision="1" controls-position="right"
-        @change="apply('envLight.exposure', cfg.envLight.exposure)" />
-    </el-form-item>
+    <template v-if="cfg.bloom.enabled">
+      <el-form-item label="强度">
+        <el-input-number v-model="cfg.bloom.strength" :min="0" :max="1" :step="0.001" :precision="3" controls-position="right"
+          @change="apply('bloom.strength', cfg.bloom.strength)" />
+      </el-form-item>
+      <el-form-item label="扩散半径">
+        <el-input-number v-model="cfg.bloom.radius" :min="0" :max="2" :step="0.1" :precision="1" controls-position="right"
+          @change="apply('bloom.radius', cfg.bloom.radius)" />
+      </el-form-item>
+      <el-form-item label="亮度阈值">
+        <el-input-number v-model="cfg.bloom.threshold" :min="0" :max="2" :step="0.05" :precision="2" controls-position="right"
+          @change="apply('bloom.threshold', cfg.bloom.threshold)" />
+      </el-form-item>
+    </template>
+ 
 
     <el-button type="primary" plain class="w-full" @click="getCurrentEnv">打印环境配置</el-button>
   </el-form>
@@ -86,6 +99,7 @@
 
 <script>
 import { bimControls } from '../exports/bimControls'
+import sceneConfig from '../config/scene-config'
 
 export default {
   name: 'SceneEnvPanel',
@@ -101,7 +115,7 @@ export default {
   },
   methods: {
     loadConfig() {
-      const src = bimControls.getEnvConfig() ?? window.BizConfig?.sceneConfig?.envConfig
+      const src = bimControls.getEnvConfig() ?? sceneConfig.envConfig
       if (src) {
         this.cfg = JSON.parse(JSON.stringify(src))
         // 防御：配置缺少 shadow 块时补全默认值，避免模板访问 undefined 属性崩溃
@@ -117,6 +131,9 @@ export default {
         if (!this.cfg.envLight) {
           this.cfg.envLight = { intensity: 1, bgIntensity: 1.5, exposure: 1 }
         }
+        if (!this.cfg.bloom) {
+          this.cfg.bloom = { enabled: false, strength: 0.001, radius: 0, threshold: 0 }
+        }
       }
     },
 
@@ -131,6 +148,7 @@ export default {
           },
         },
         envLight: { intensity: 1, bgIntensity: 1.5, exposure: 1.3 },
+        bloom: { enabled: false, strength: 0.001, radius: 0, threshold: 0 },
       }
     },
 
@@ -176,5 +194,12 @@ export default {
 }
 :deep(.el-select) {
   width: 140px;
+}
+:deep(.el-divider) {
+  margin: 10px 0 8px;
+}
+:deep(.el-divider__text) {
+  font-size: 12px;
+  color: #909399;
 }
 </style>

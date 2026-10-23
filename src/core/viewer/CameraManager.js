@@ -144,9 +144,14 @@ export class CameraManager {
     this.controls.minDistance = Math.max(safeDimension / 200, 1)
     this.controls.maxDistance = Math.max(fitDistance * ZOOM_LIMITS.maxDistanceFactor, safeDimension)
 
-    // 计算目标相机位置（正上方视角，降低高度）
-    const offset = new THREE.Vector3(0, 1, 0).multiplyScalar(fitDistance * 0.5)
-    const targetPosition = center.clone().add(offset)
+    // 沿当前观察方向反推目标相机位置（保持视角连贯，避免突然转向）
+    // 用相机相对当前 target 的偏移方向，比 getWorldDirection 更稳定
+    const currentOffset = this.camera.position.clone().sub(this.controls.target)
+    const currentDistance = currentOffset.length()
+    const dir = currentDistance > 0.01
+      ? currentOffset.normalize()
+      : new THREE.Vector3(0.8, 0.6, 0.8).normalize() // 退化保护
+    const targetPosition = center.clone().addScaledVector(dir, fitDistance)
 
     // 使用飞行动画
     this.hasSettledView = true
@@ -240,15 +245,13 @@ export class CameraManager {
     const t = Math.min(elapsed / anim.duration, 1)
     const eased = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
 
+    // 同时更新相机位置和 OrbitControls target，保持控制器状态同步
     this.camera.position.lerpVectors(anim.fromPosition, anim.toPosition, eased)
     this.controls.target.lerpVectors(anim.fromTarget, anim.toTarget, eased)
-    this.camera.lookAt(this.controls.target)
+    this.controls.update()
 
     if (t >= 1) {
       anim.active = false
-      this.camera.position.copy(anim.toPosition)
-      this.controls.target.copy(anim.toTarget)
-      this.controls.update()
     }
 
     return true

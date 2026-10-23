@@ -1,8 +1,9 @@
 {
-  "name": "threejs-bim-plugin",
+  "name": "threejs-bim-viewer",
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "description": "基于 Three.js 的 BIM 场景查看器",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -17,7 +18,7 @@
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.2.1",
-    "sass": "^1.83.4",
-    "vite": "^6.0.11"
+    "sass": "^1.83.0",
+    "vite": "^6.0.5"
   }
 }

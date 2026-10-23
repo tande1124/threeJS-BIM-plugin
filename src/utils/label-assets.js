@@ -1,5 +1,5 @@
 /**
- * 标签资产注册表
+ * 标签资源注册表
  *
  * 通过 ID 标识引用模型和贴图，避免在配置中书写完整路径。
  * ID 体系与 labels.json 对齐（模型 L01~L05，贴图 T0101~T0541）。
@@ -12,8 +12,8 @@
  *   { model: './assets/model/label_e.glb' }
  */
 
-const MODEL_BASE = './assets/model/'
-const IMAGE_BASE = './assets/model/image/'
+const MODEL_BASE = './cdn/assets/model/'
+const IMAGE_BASE = './cdn/assets/model/image/'
 
 // ==================== 模型定义 ====================
 

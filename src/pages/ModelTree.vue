@@ -3,6 +3,12 @@
     <div class="tree-item" @click="toggle">
       <span v-if="node.children.length" class="expand-icon">{{ expanded ? '▼' : '▶' }}</span>
       <span v-else class="expand-placeholder"></span>
+      <el-checkbox
+        v-if="depth > 0"
+        :model-value="visible"
+        @click.stop
+        @change="onVisibilityChange"
+      />
       <span class="node-name">{{ node.name }}</span>
       <el-tag size="small" type="info">{{ node.type }}</el-tag>
       <span v-if="node.children.length" class="child-count">({{ node.children.length }})</span>
@@ -13,6 +19,7 @@
         :key="child.id"
         :node="child"
         :bimViewer="bimViewer"
+        :depth="depth + 1"
       />
     </div>
   </div>
@@ -34,10 +41,16 @@ export default defineComponent({
       type: Object,
       default: null,
     },
+    /** 树深度，根节点为 0，子节点依次递增 */
+    depth: {
+      type: Number,
+      default: 0,
+    },
   },
   data() {
     return {
       expanded: false,
+      visible: true,
     }
   },
   methods: {
@@ -51,6 +64,11 @@ export default defineComponent({
     highlightObject() {
       if (!this.bimViewer || !this.node.name || this.node.name === '(未命名)') return
       this.bimViewer.highlightPart(this.node.name)
+    },
+    onVisibilityChange(val) {
+      this.visible = val
+      if (!this.bimViewer || !this.node.name) return
+      this.bimViewer.setPartVisible(this.node.name, val)
     },
   },
 })

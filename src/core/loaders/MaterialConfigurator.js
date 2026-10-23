@@ -34,16 +34,20 @@ function createDefaultLibrary() {
   lib.solid.push({ id: 'm71', color: '#cc44ff', name: '品红' })
 
   // 贴图
-  lib.tex.push({ id: 'm40', color: '#b0b0b0', name: '水泥地', textureDataURL: './assets/textures/concrete.jpg', tileX: 2, tileY: 2 })
-  lib.tex.push({ id: 'm41', color: '#5a8a42', name: '草皮', textureDataURL: './assets/textures/grass.jpg', tileX: 2, tileY: 2 })
-  lib.tex.push({ id: 'm42', color: '#6e5234', name: '泥巴', textureDataURL: './assets/textures/mud_1.png', tileX: 2, tileY: 2 })
-  lib.tex.push({ id: 'm43', color: '#6e5234', name: '泥巴2', textureDataURL: './assets/textures/mud_2.png', tileX: 2, tileY: 2 })
-  lib.tex.push({ id: 'm44', color: '#c4b282', name: '砂砾石', textureDataURL: './assets/textures/gravel.jpg', tileX: 2, tileY: 2 })
-  lib.tex.push({ id: 'm45', color: '#a0a0a0', name: '碎石', textureDataURL: './assets/textures/crushed_stone_1.jpg', tileX: 2, tileY: 2 })
-  lib.tex.push({ id: 'm46', color: '#a0a0a0', name: '碎石2', textureDataURL: './assets/textures/crushed_stone_2.png', tileX: 2, tileY: 2 })
-  lib.tex.push({ id: 'm47', color: '#ffffff', name: '水面', textureDataURL: './assets/textures/water.png', tileX: 2, tileY: 2, roughness: 0.25, transparent: true })
-  lib.tex.push({ id: 'm48', color: '#ffffff', name: '栏杆', textureDataURL: './assets/textures/railing.png', tileX: 2, tileY: 2, roughness: 0.5, transparent: true })
-  lib.tex.push({ id: 'm49', color: '#ffffff', name: '网格', textureDataURL: './assets/textures/grid.png', tileX: 2, tileY: 2, roughness: 0.5, transparent: true })
+  lib.tex.push({ id: 'm40', color: '#b0b0b0', name: '水泥地', textureDataURL: './cdn/assets/textures/concrete floor.jpg', tileX: 2, tileY: 2, roughness: 1, transparent: false })
+  lib.tex.push({ id: 'm111', color: '#b0b0b0', name: '道路', textureDataURL: './cdn/assets/textures/street.jpg', tileX: 2, tileY: 2, roughness: 1, transparent: false })
+  lib.tex.push({ id: 'm112', color: '#b0b0b0', name: '混泥土1', textureDataURL: './cdn/assets/textures/concrete_1.jpg', tileX: 1, tileY: 1, roughness: 0.5, transparent: false })
+  lib.tex.push({ id: 'm113', color: '#b0b0b0', name: '混泥土2', textureDataURL: './cdn/assets/textures/concrete_2.jpg', tileX: 1, tileY: 1, roughness: 0.5, transparent: false })
+  lib.tex.push({ id: 'm41', color: '#5a8a42', name: '草皮', textureDataURL: './cdn/assets/textures/grass.jpg', tileX: 2, tileY: 2, roughness: 1, transparent: false })
+  lib.tex.push({ id: 'm42', color: '#6e5234', name: '泥巴', textureDataURL: './cdn/assets/textures/mud_1.png', tileX: 2, tileY: 2, roughness: 1, transparent: false })
+  lib.tex.push({ id: 'm43', color: '#6e5234', name: '泥巴2', textureDataURL: './cdn/assets/textures/mud_2.png', tileX: 2, tileY: 2, roughness: 1, transparent: false })
+  lib.tex.push({ id: 'm44', color: '#c4b282', name: '砂砾石', textureDataURL: './cdn/assets/textures/gravel.jpg', tileX: 2, tileY: 2, roughness: 1, transparent: false })
+  lib.tex.push({ id: 'm45', color: '#a0a0a0', name: '碎石', textureDataURL: './cdn/assets/textures/crushed_stone_1.jpg', tileX: 2, tileY: 2, roughness: 1, transparent: false })
+  lib.tex.push({ id: 'm46', color: '#a0a0a0', name: '碎石2', textureDataURL: './cdn/assets/textures/crushed_stone_2.png', tileX: 2, tileY: 2, roughness: 1, transparent: false })
+  lib.tex.push({ id: 'm114', color: '#b0b0b0', name: '干砌石', textureDataURL: './cdn/assets/textures/stone wall.jpg', tileX: 1, tileY: 1, roughness: 0.5, transparent: false })
+  lib.tex.push({ id: 'm47', color: '#ffffff', name: '水面', textureDataURL: './cdn/assets/textures/water.png', tileX: 2, tileY: 2, roughness: 0.25, transparent: true })
+  lib.tex.push({ id: 'm48', color: '#ffffff', name: '栏杆', textureDataURL: './cdn/assets/textures/railing.png', tileX: 2, tileY: 2, roughness: 0.5, transparent: true })
+  lib.tex.push({ id: 'm49', color: '#ffffff', name: '网格', textureDataURL: './cdn/assets/textures/grid.png', tileX: 2, tileY: 2, roughness: 1, transparent: true })
 
   // 金属
   lib.metal.push({ id: 'm15', color: '#ff2222', name: '红色金属', metalness: 0.8, roughness: 0.2 })
@@ -69,22 +73,22 @@ function createDefaultLibrary() {
   lib.metal.push({ id: 'm78', color: '#cc44ff', name: '品红金属', metalness: 0.85, roughness: 0.22 })
 
   // 半透明
-  lib.trans.push({ id: 'm29', color: '#ff6644', name: '半透明红', opacity: 0.6 })
-  lib.trans.push({ id: 'm30', color: '#44aaff', name: '半透明蓝', opacity: 0.6 })
-  lib.trans.push({ id: 'm31', color: '#44dd88', name: '半透明绿', opacity: 0.6 })
-  lib.trans.push({ id: 'm32', color: '#ffcc44', name: '半透明黄', opacity: 0.6 })
-  lib.trans.push({ id: 'm33', color: '#aa88ff', name: '半透明紫', opacity: 0.6 })
-  lib.trans.push({ id: 'm34', color: '#88ccff', name: '半透明青', opacity: 0.6 })
-  lib.trans.push({ id: 'm35', color: '#ffffff', name: '半透明白', opacity: 0.6 })
-  lib.trans.push({ id: 'm36', color: '#888888', name: '半透明灰', opacity: 0.6 })
-  lib.trans.push({ id: 'm79', color: '#ff8800', name: '半透明橙', opacity: 0.6 })
-  lib.trans.push({ id: 'm80', color: '#a3d900', name: '半透明青柠', opacity: 0.6 })
-  lib.trans.push({ id: 'm81', color: '#00c98a', name: '半透明青绿', opacity: 0.6 })
-  lib.trans.push({ id: 'm82', color: '#44bbff', name: '半透明天蓝', opacity: 0.6 })
-  lib.trans.push({ id: 'm83', color: '#3355ee', name: '半透明靛蓝', opacity: 0.6 })
-  lib.trans.push({ id: 'm84', color: '#cc44ff', name: '半透明品红', opacity: 0.6 })
-  lib.trans.push({ id: 'm85', color: '#ff44aa', name: '半透明粉', opacity: 0.6 })
-  lib.trans.push({ id: 'm86', color: '#8a5a2b', name: '半透明棕', opacity: 0.6 })
+  lib.trans.push({ id: 'm29', color: '#ff6644', name: '半透明红', opacity: 0.4 })
+  lib.trans.push({ id: 'm30', color: '#44aaff', name: '半透明蓝', opacity: 0.4 })
+  lib.trans.push({ id: 'm31', color: '#44dd88', name: '半透明绿', opacity: 0.4 })
+  lib.trans.push({ id: 'm32', color: '#ffcc44', name: '半透明黄', opacity: 0.4 })
+  lib.trans.push({ id: 'm33', color: '#aa88ff', name: '半透明紫', opacity: 0.4 })
+  lib.trans.push({ id: 'm34', color: '#88ccff', name: '半透明青', opacity: 0.4 })
+  lib.trans.push({ id: 'm35', color: '#ffffff', name: '半透明白', opacity: 0.4 })
+  lib.trans.push({ id: 'm36', color: '#888888', name: '半透明灰', opacity: 0.4 })
+  lib.trans.push({ id: 'm79', color: '#ff8800', name: '半透明橙', opacity: 0.4 })
+  lib.trans.push({ id: 'm80', color: '#a3d900', name: '半透明青柠', opacity: 0.4 })
+  lib.trans.push({ id: 'm81', color: '#00c98a', name: '半透明青绿', opacity: 0.4 })
+  lib.trans.push({ id: 'm82', color: '#44bbff', name: '半透明天蓝', opacity: 0.4 })
+  lib.trans.push({ id: 'm83', color: '#3355ee', name: '半透明靛蓝', opacity: 0.4 })
+  lib.trans.push({ id: 'm84', color: '#cc44ff', name: '半透明品红', opacity: 0.4 })
+  lib.trans.push({ id: 'm85', color: '#ff44aa', name: '半透明粉', opacity: 0.4 })
+  lib.trans.push({ id: 'm86', color: '#8a5a2b', name: '半透明棕', opacity: 0.4 })
 
   // 其它（线框等）
   lib.other.push({ id: 'm37', color: '#00ffff', name: '青色线框', wireframe: true })
@@ -153,6 +157,9 @@ function createSolidMaterial(cfg) {
 
 /** 共享 TextureLoader 实例（避免每次创建材质重复实例化） */
 const _textureLoader = new THREE.TextureLoader()
+
+/** 边线 LineBasicMaterial 缓存：按颜色复用，避免同色线框重复创建 shader */
+const _edgeLineMatCache = new Map()
 
 function createTexMaterial(cfg, renderer) {
   const mat = new THREE.MeshStandardMaterial({
@@ -356,7 +363,14 @@ export class MaterialConfigurator {
       const mat = this.getMaterialByKey(matKey)
       if (!mat) return
 
-      // 线框材质是配置标记对象（非 THREE.Material），需要边线覆盖层处理，此处仅记录 matKey
+      // 线框材质：构建 EdgesGeometry + LineSegments 边线覆盖层
+      if (mat.isWireframe) {
+        this.applyWireframeToMesh(mesh, mat)
+        mesh.userData._matKey = matKey
+        appliedCount++
+        return
+      }
+
       if (!(mat instanceof THREE.Material)) {
         mesh.userData._matKey = matKey
         return
@@ -451,11 +465,56 @@ export class MaterialConfigurator {
     this.clearCache()
   }
 
+  /**
+   * 为单个 mesh 应用线框边线覆盖层。
+   * 外部调用入口（bimControls.setPartMaterial 等复用此方法，共享 _edgeLineMatCache）。
+   * @param {THREE.Mesh} mesh
+   * @param {{ isWireframe: true, color: string, edgeThreshold: number }} wireCfg
+   */
+  applyWireframeToMesh(mesh, wireCfg) {
+    // 移除旧覆盖层并释放 GPU 资源
+    const oldEdge = mesh.children.find(c => c.name === '_wireframeEdge')
+    if (oldEdge) {
+      oldEdge.geometry.dispose()
+      mesh.remove(oldEdge)
+    }
+
+    const edges = new THREE.EdgesGeometry(mesh.geometry, wireCfg.edgeThreshold)
+    // 按颜色复用 LineBasicMaterial
+    let lineMat = _edgeLineMatCache.get(wireCfg.color)
+    if (!lineMat) {
+      lineMat = new THREE.LineBasicMaterial({
+        color: wireCfg.color,
+        depthTest: false,
+        transparent: true,
+        opacity: 0.9,
+      })
+      _edgeLineMatCache.set(wireCfg.color, lineMat)
+    }
+    const lineSegments = new THREE.LineSegments(edges, lineMat)
+    lineSegments.name = '_wireframeEdge'
+    lineSegments.renderOrder = 1
+    lineSegments.raycast = () => { }  // 不参与拾取
+    mesh.add(lineSegments)
+
+    // 克隆材质后再修改透明度，避免污染 materialCache 中的共享实例
+    mesh.material = mesh.material.clone()
+    mesh.material.transparent = true
+    mesh.material.opacity = 0.15
+    mesh.material.depthWrite = false
+  }
+
   /** 清除材质实例缓存（释放 GPU 资源，下次 getMaterialByKey 会重新创建） */
   clearCache() {
     for (const mat of this.materialCache.values()) {
       if (mat && typeof mat.dispose === 'function') mat.dispose()
     }
     this.materialCache.clear()
+
+    // 释放边线 LineBasicMaterial 缓存
+    for (const mat of _edgeLineMatCache.values()) {
+      mat.dispose()
+    }
+    _edgeLineMatCache.clear()
   }
 }

@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js'
 import { disposeObject3D } from '../../utils/three-dispose'
-import { createGeoReferenceMatrix } from '../../utils/geo-coordinate'
+import { createGeoReferenceMatrix, createEcefToSceneFromGeoInfo } from '../../utils/geo-coordinate'
 
 // TODO--禁用 GLTFLoader 对节点名称的清洗（空格→下划线、移除 [ ] . : /）。
 // GLB 模型中常用方括号标注编号，如 "第 0001 单元 [32845CDAB621]"，
@@ -36,24 +36,8 @@ export class GltfModelLoader {
   // ---- 部件选中状态 ----
   /** 当前选中的部件对象（null 表示无选中） */
   highlightedObject = null
-  /** 选中部件的半透明不透明度 */
-  static SELECTED_OPACITY = 0.5
-  /** 选中前每个网格的原始材质（恢复时用） */
-  originalMaterials = new Map()
-  /** 选中时克隆出的临时材质（清除时释放） */
-  clonedMaterials = new Set()
-  /** 轮廓线容器（克隆网格 + 白色背面材质） */
-  outlineGroup = new THREE.Group()
   /** 当前 GLB 网格所在图层（双透模式=1，单层模式=0） */
   currentLayer = 1
-  /** 轮廓线共享材质：白色、反面绘制 */
-  outlineMaterial = new THREE.MeshBasicMaterial({
-    color: 0xffffff,
-    side: THREE.FrontSide,
-    depthWrite: false,
-  })
-  /** 部件放大比例（相对于部件包围盒），1.0 表示不放大 */
-  static OUTLINE_SCALE = 1.0
 
   /**
    * @param {Object} deps - 依赖注入
@@ -70,9 +54,6 @@ export class GltfModelLoader {
 
     this.root = new THREE.Group()
     this.root.name = 'gltf-root'
-    this.outlineGroup.name = 'outline-group'
-    this.outlineGroup.layers.set(this.currentLayer) // 轮廓线仅内相机可见
-    this.deps.scene.add(this.outlineGroup)
     this.deps.scene.add(this.root)
 
     this.loader = new GLTFLoader()
@@ -80,7 +61,7 @@ export class GltfModelLoader {
     // Draco 解码器（支持 Draco 压缩的 GLB/GLTF）
     // 仅当模型包含 Draco 压缩时才会按需加载解码器
     const dracoLoader = new DRACOLoader()
-    dracoLoader.setDecoderPath('./libs/threeJs/draco/gltf/')
+    dracoLoader.setDecoderPath('./cdn/libs/threeJs/draco/gltf/')
     this.loader.setDRACOLoader(dracoLoader)
 
     // 射线拾取启用所有图层，确保 Layer 1（GLB 内部层）的网格也能被点击命中
@@ -206,7 +187,6 @@ export class GltfModelLoader {
     this.root.traverse((obj) => {
       if (obj.isMesh) obj.layers.set(layer)
     })
-    this.outlineGroup.layers.set(layer)
   }
 
   /**
@@ -280,62 +260,12 @@ export class GltfModelLoader {
   }
 
   /**
-   * 选中指定 GLB 部件：部件整体半透明 + 白色轮廓线。
+   * 选中指定 GLB 部件：仅记录选中对象，描边由 OutlinePass 后处理实现。
    * 传 null 清除当前选中。
    * @param {THREE.Object3D|null} object
    */
   highlight(object) {
-    this.clearHighlight()
     this.highlightedObject = object
-    if (!object) return
-
-    // ── 1. 部件整体半透明 ──
-    object.traverse((child) => {
-      const mesh = child
-      if (!mesh.isMesh) return
-
-      const original = mesh.material
-      const materials = Array.isArray(original) ? original : [original]
-      const clones = materials.map((mat) => {
-        const clone = mat.clone()
-        clone.transparent = true
-        clone.opacity = GltfModelLoader.SELECTED_OPACITY
-        clone.depthWrite = false
-        clone.needsUpdate = true
-        this.clonedMaterials.add(clone)
-        return clone
-      })
-      mesh.material = Array.isArray(original) ? clones : clones[0]
-      this.originalMaterials.set(mesh, original)
-    })
-
-    // ── 2. 白色轮廓线（背面放大法） ──
-    object.updateMatrixWorld(true)
-    const box = new THREE.Box3().setFromObject(object)
-    const center = box.getCenter(new THREE.Vector3())
-    const scale = GltfModelLoader.OUTLINE_SCALE
-
-    const scaleMatrix = new THREE.Matrix4()
-      .makeTranslation(center.x, center.y, center.z)
-      .multiply(new THREE.Matrix4().makeScale(scale, scale, scale))
-      .multiply(new THREE.Matrix4().makeTranslation(-center.x, -center.y, -center.z))
-
-    object.traverse((child) => {
-      const mesh = child
-      if (!mesh.isMesh) return
-
-      const clone = mesh.clone()
-      clone.material = this.outlineMaterial
-
-      mesh.updateMatrixWorld(true)
-      clone.matrix.copy(mesh.matrixWorld)
-      clone.matrix.premultiply(scaleMatrix)
-      clone.matrix.decompose(clone.position, clone.quaternion, clone.scale)
-
-      clone.layers.set(this.currentLayer)
-      clone.renderOrder = 999
-      this.outlineGroup.add(clone)
-    })
   }
 
   /**
@@ -362,6 +292,34 @@ export class GltfModelLoader {
   }
 
   /**
+   * 仅在相机距离较远时飞行聚焦，近距离只高亮不动相机。
+   * @param {THREE.Object3D} object - 部件对象
+   * @param {THREE.Camera} camera - 当前场景相机
+   * @param {number} [threshold=3] - 当前距离超过理想距离的倍数时触发飞行
+   * @param {number} [duration=900] - 飞行动画时长（ms）
+   */
+  flyToObjectIfNeeded(object, camera, threshold = 3, duration = 900) {
+    if (!object || !this.deps.onFlyTo || !camera) return
+
+    object.updateMatrixWorld(true)
+    const box = new THREE.Box3().setFromObject(object)
+    if (box.isEmpty()) return
+
+    const center = box.getCenter(new THREE.Vector3())
+    const size = box.getSize(new THREE.Vector3())
+    const maxDim = Math.max(size.x, size.y, size.z, 1)
+
+    const halfFov = THREE.MathUtils.degToRad(45 * 0.5)
+    const idealDistance = (maxDim / (2 * Math.tan(halfFov))) * 2.0
+    const currentDistance = camera.position.distanceTo(center)
+
+    // 相机已经足够近，不移动
+    if (currentDistance <= idealDistance * threshold) return
+
+    this.deps.onFlyTo(center, idealDistance, duration)
+  }
+
+  /**
    * 根据来源 ID 飞行定位到指定 GLB 模型。
    * @param {string} sourceId - 模型来源 ID
    * @param {number} [duration=900] - 飞行动画时长（毫秒）
@@ -377,23 +335,22 @@ export class GltfModelLoader {
     return false
   }
 
-  /** 清除当前选中，恢复原始材质并移除轮廓网格 */
+  /** 清除当前选中 */
   clearHighlight() {
-    // 恢复原始材质
-    for (const [mesh, original] of this.originalMaterials) {
-      mesh.material = original
-    }
-    this.originalMaterials.clear()
-    for (const mat of this.clonedMaterials) {
-      mat.dispose()
-    }
-    this.clonedMaterials.clear()
-
-    // 移除轮廓网格
-    while (this.outlineGroup.children.length > 0) {
-      this.outlineGroup.remove(this.outlineGroup.children[0])
-    }
     this.highlightedObject = null
+  }
+
+  /**
+   * 获取当前选中部件下的所有网格（供 OutlinePass 使用）。
+   * @returns {THREE.Mesh[]}
+   */
+  getSelectedObjects() {
+    if (!this.highlightedObject) return []
+    const meshes = []
+    this.highlightedObject.traverse((child) => {
+      if (child.isMesh) meshes.push(child)
+    })
+    return meshes
   }
 
   /** 清除并释放所有已加载的 GLTF 模型 */
@@ -435,10 +392,15 @@ export class GltfModelLoader {
   /** 按地理配准参数把 GLB 定位到场景（等待地形就绪后应用矩阵） */
   async applyGeoReference(model, params) {
     await this.deps.whenTerrainReady?.()
-    const ecefToScene = this.deps.getEcefToSceneTransform?.()
+    // 优先用 3D Tiles 的 ECEF→场景变换；不可用时（visible=false 导致 root 未加载）
+    // 回退到从 geoInfo 直接计算的变换矩阵
+    let ecefToScene = this.deps.getEcefToSceneTransform?.()
     if (!ecefToScene) {
-      console.warn('[GltfModelLoader] ECEF → 场景变换不可用，无法进行地理配准。')
-      return
+      ecefToScene = createEcefToSceneFromGeoInfo(params)
+      model.userData._usedFallbackEcef = true
+      console.info('[GltfModelLoader] 使用 geoInfo 回退变换矩阵（3D Tiles root 未加载）')
+    } else {
+      model.userData._usedFallbackEcef = false
     }
     const matrix = createGeoReferenceMatrix(params, ecefToScene)
     model.matrix.identity()
@@ -473,29 +435,26 @@ export class GltfModelLoader {
 
     // 等待 3D Tiles 就绪（与 applyGeoReference 一致）
     await this.deps.whenTerrainReady?.()
-    const ecefToScene = this.deps.getEcefToSceneTransform?.()
+    // 优先用 3D Tiles 的 ECEF→场景变换；不可用时（visible=false 导致 root 未加载）
+    // 回退到从 geoInfo 直接计算的变换矩阵
+    let ecefToScene = this.deps.getEcefToSceneTransform?.()
     if (!ecefToScene) {
-      console.warn('[GltfModelLoader] ECEF → 场景变换不可用。')
-      return false
+      ecefToScene = createEcefToSceneFromGeoInfo(newGeoInfo)
+      console.info('[GltfModelLoader] setGltfGeoOrigin 使用 geoInfo 回退变换矩阵')
     }
 
     const newMatrix = createGeoReferenceMatrix(newGeoInfo, ecefToScene)
-    const refModel = models.find((m) => m.userData?.geoOrigin)
 
-    if (refModel) {
-      // ── 增量更新：delta = newMatrix × inverse(oldMatrix) ──
-      const oldMatrix = createGeoReferenceMatrix(refModel.userData.geoOrigin, ecefToScene)
-      const delta = newMatrix.clone().multiply(oldMatrix.clone().invert())
-      for (const model of models) {
-        model.applyMatrix4(delta)
-        model.matrix.decompose(model.position, model.quaternion, model.scale)
-        model.userData.geoOrigin = { ...newGeoInfo }
-      }
-    } else {
-      // ── 首次设置：与 applyGeoReference 一致，需补偿加载时的居中偏移 ──
+    // 检查是否有模型需要强制重新定位（ECEF 参考系变化：地形后加载）
+    const needsFullReset = models.some(
+      (m) => m.userData?._usedFallbackEcef && this.deps.getEcefToSceneTransform?.()
+    )
+
+    if (needsFullReset) {
+      // ECEF 参考系已变更：所有模型强制重新定位
+      console.info('[GltfModelLoader] ECEF 参考系已变更（地形已加载），强制全部重新定位')
       for (const model of models) {
         model.matrix.identity()
-        // 补偿加载时 center=true 的居中偏移（在模型局部空间中恢复）
         const centerOffset = model.userData._centerOffset
         if (centerOffset) {
           model.translateOnAxis(centerOffset, 1)
@@ -504,7 +463,27 @@ export class GltfModelLoader {
         model.matrix.decompose(model.position, model.quaternion, model.scale)
         model.userData.geoOrigin = { ...newGeoInfo }
         delete model.userData._centerOffset
+        delete model.userData._usedFallbackEcef
       }
+      return true
+    }
+
+    // 只处理已有 geoOrigin 的模型（即之前被地理配准过的模型）
+    // 未配准的模型（如叠加加载的，以 center 定位）保持不变
+    const geoModels = models.filter((m) => m.userData?.geoOrigin)
+    if (geoModels.length === 0) {
+      console.warn('[GltfModelLoader] 无已配准的模型，跳过 setGltfGeoOrigin。')
+      return false
+    }
+
+    const refModel = geoModels[0]
+    const oldMatrix = createGeoReferenceMatrix(refModel.userData.geoOrigin, ecefToScene)
+    const delta = newMatrix.clone().multiply(oldMatrix.clone().invert())
+
+    for (const model of geoModels) {
+      model.applyMatrix4(delta)
+      model.matrix.decompose(model.position, model.quaternion, model.scale)
+      model.userData.geoOrigin = { ...newGeoInfo }
     }
     return true
   }

@@ -15,7 +15,7 @@ const RIPPLE_SPEED = 0.45
 // ========== 自适应缩放 ==========
 
 const ADAPTIVE_MIN_SCALE = 0.3   // 最小缩放倍率
-const ADAPTIVE_MAX_SCALE = 5.0   // 最大缩放倍率
+const ADAPTIVE_MAX_SCALE = 2.0   // 最大缩放倍率
 const ADAPTIVE_LERP = 0.08       // 平滑插值系数
 
 // ========== 默认 opts ==========
@@ -246,6 +246,8 @@ export class LabelRenderer {
     scaleMultiplier = 1
     /** 场景中心点（复用，避免每帧 new） */
     _sceneCenter = new THREE.Vector3()
+    /** 跳过帧数：等相机飞到位后再捕获参考距离 */
+    _skipFrames = 0
 
     /** 射线拾取 */
     raycaster = new THREE.Raycaster()
@@ -380,6 +382,16 @@ export class LabelRenderer {
         }
 
         console.log(`[LabelRenderer] 图层组 "${type}" 已创建，共 ${this.labels.length} 个标签`)
+
+        // 用标签实际包围盒中心作为距离参考点（替代原点）
+        if (this.labels.length > 0) {
+            const box = new THREE.Box3().setFromObject(this.root)
+            box.getCenter(this._sceneCenter)
+        }
+        // 重置参考距离，跳过若干帧后再捕获（等相机飞到位）
+        this.referenceDistance = 0
+        this.scaleMultiplier = 1
+        this._skipFrames = 120  // 约 2 秒（60fps）
     }
 
     // ========== 单个标签创建 ==========
@@ -461,6 +473,8 @@ export class LabelRenderer {
                     const mats = Array.isArray(child.material) ? child.material : [child.material]
                     mats.forEach((mat) => {
                         if ('emissive' in mat) {
+                            // 用贴图作为 emissiveMap：自发光"发射"出贴图本身的颜色，
+                            // 而非叠加白色，从而在不改变色相的前提下增亮。
                             mat.emissive = new THREE.Color(0xffffff)
                             mat.emissiveMap = mat.map || null
                             mat.emissiveIntensity = opts.emissiveBoost
@@ -485,6 +499,7 @@ export class LabelRenderer {
         if (opts.showName && item.name) {
             const nameTag = createNameTag(item.name, color, opts.nameTagStyle)
             if (opts.nameTagOrientation === 'horizontal') {
+                // 水平模式：名称牌平放，沿 nameTagRot 方向水平偏移
                 nameTag.rotation.order = 'YXZ'
                 nameTag.rotation.y = THREE.MathUtils.degToRad(opts.nameTagRot)
                 nameTag.rotation.x = -Math.PI / 2
@@ -494,6 +509,7 @@ export class LabelRenderer {
                     Math.cos(nameTag.rotation.y) * opts.nameTagHeight
                 )
             } else {
+                // 垂直模式（默认）：沿竖直方向抬高
                 nameTag.position.set(0, labelHeight + opts.nameTagHeight, 0)
                 if (opts.nameTagRot) {
                     nameTag.material.rotation = THREE.MathUtils.degToRad(opts.nameTagRot)
@@ -613,9 +629,17 @@ export class LabelRenderer {
             const camPos = camera.position
             const currentDistance = camPos.distanceTo(this._sceneCenter)
 
-            // 首次捕获参考距离
-            if (this.referenceDistance === 0) {
+            // 跳过前 N 帧，等相机飞到位后再捕获参考距离
+            if (this._skipFrames > 0) {
+                this._skipFrames--
+            } else if (this.referenceDistance === 0) {
+                // 首次捕获参考距离
                 this.referenceDistance = currentDistance
+            }
+
+            // 除零保护：参考距离为 0 时不缩放
+            if (this.referenceDistance <= 0) {
+                return
             }
 
             // 计算目标缩放倍率并平滑插值
@@ -777,7 +801,6 @@ export class LabelRenderer {
         this.labels = []
         this.templates.clear()
         this.iconCache.clear()
-        this.modelTemplateMap.clear()
         this.textureCache.clear()
         if (this.root.parent) this.root.parent.remove(this.root)
         disposeObject3D(this.root)

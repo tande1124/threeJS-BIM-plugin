@@ -20,6 +20,7 @@ export default class LightDragHelper {
   /** @type {THREE.Mesh} */  targetMarker = null
   /** @type {THREE.Line} */  line = null
   /** @type {THREE.Mesh} */  arrow = null
+  /** @type {THREE.Mesh} */  lightPanel = null
   /** @type {TransformControls} */
   transformControls = null
   isDragging = false
@@ -76,6 +77,20 @@ export default class LightDragHelper {
     this.arrow.castShadow = false
     this.arrow.receiveShadow = false
     this.group.add(this.arrow)
+
+    // 光照面板（白色矩形，位于光源处，法线沿光照方向）
+    this.lightPanel = new THREE.Mesh(
+      new THREE.PlaneGeometry(1, 1),
+      new THREE.MeshBasicMaterial({
+        color: 0xffffff, transparent: true, opacity: 0.35,
+        depthTest: false, side: THREE.DoubleSide,
+      }),
+    )
+    this.lightPanel.renderOrder = 8
+    this.lightPanel.castShadow = false
+    this.lightPanel.receiveShadow = false
+    this.lightPanel.userData.isControlHandle = true
+    this.group.add(this.lightPanel)
 
     scene.add(this.group)
 
@@ -181,8 +196,20 @@ export default class LightDragHelper {
     this.posMarker.scale.setScalar(markerR)
     this.targetMarker.scale.setScalar(markerR)
 
-    // 箭头锥体
+    // 光照方向
     _tmpDir.subVectors(targetPos, lightPos).normalize()
+
+    // 光照面板：位于光源处，法线朝光照反方向（面板面朝光源照射方向）
+    const panelW = markerR * 10
+    const panelH = markerR * 7
+    this.lightPanel.scale.set(panelW, panelH, 1)
+    this.lightPanel.position.copy(lightPos)
+    const negDir = _tmpDir.clone().negate()
+    if (Math.abs(negDir.dot(_UP_Y)) < 0.9999) {
+      this.lightPanel.quaternion.setFromUnitVectors(_UP_Y, negDir)
+    }
+
+    // 箭头锥体
     const arrowLen = Math.min(Math.max(len * 0.12, markerR * 2), len * 0.35)
     this.arrow.scale.set(markerR * 1.3, arrowLen, markerR * 1.3)
     this.arrow.position.copy(targetPos).addScaledVector(_tmpDir, -(markerR + arrowLen * 0.5))

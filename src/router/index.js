@@ -1,14 +1,17 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
+import IndexPage from '../pages/index.vue'
 
 const routes = [
   {
     path: '/',
-    name: 'BIM',
-    component: () => import('@/pages/index.vue'),
+    name: 'index',
+    component: IndexPage,
   },
 ]
 
-export default createRouter({
+const router = createRouter({
   history: createWebHashHistory(),
   routes,
 })
+
+export default router
